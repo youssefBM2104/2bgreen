@@ -10,3 +10,5 @@
 # Local secrets (nothing real yet, but keep the habit)
 .env
 *.local
+
+CLAUDE.md
