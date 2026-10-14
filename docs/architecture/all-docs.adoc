@@ -1,0 +1,19 @@
+== PlatformApplication
+plantuml::components.puml[,,format=svg]
+
+== Advisory
+plantuml::module-advisory.puml[,,format=svg]
+include::module-advisory.adoc[]
+
+== Automation
+plantuml::module-automation.puml[,,format=svg]
+include::module-automation.adoc[]
+
+== Delivery
+plantuml::module-delivery.puml[,,format=svg]
+include::module-delivery.adoc[]
+
+== Regional
+plantuml::module-regional.puml[,,format=svg]
+include::module-regional.adoc[]
+

@@ -1,0 +1,19 @@
+@startuml
+title <size:24>PlatformApplication</size>
+
+set separator none
+top to bottom direction
+
+<style>
+  root {
+    BackgroundColor: #ffffff
+    FontColor: #444444
+  }
+</style>
+
+!include <C4/C4>
+!include <C4/C4_Context>
+
+SHOW_LEGEND(true)
+hide stereotypes
+@enduml
