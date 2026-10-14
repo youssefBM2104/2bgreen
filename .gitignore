@@ -1,0 +1,12 @@
+# OS / WSL
+.DS_Store
+*:Zone.Identifier
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Local secrets (nothing real yet, but keep the habit)
+.env
+*.local
