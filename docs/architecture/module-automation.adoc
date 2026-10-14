@@ -1,0 +1,7 @@
+[%autowidth.stretch, cols="h,a"]
+|===
+|Description
+|Module `automation`. Only this root package is the public API; sub-packages are internal.
+|Base package
+|`com.twobgreen.platform.automation`
+|===

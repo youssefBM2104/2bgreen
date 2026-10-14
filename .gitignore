@@ -12,3 +12,4 @@
 *.local
 
 CLAUDE.md
+.mcp.json
