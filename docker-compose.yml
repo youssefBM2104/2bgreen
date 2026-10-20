@@ -2,7 +2,7 @@ name: 2bgreen
 
 services:
   timescaledb:
-    image: timescale/timescaledb:latest-pg17
+    image: timescale/timescaledb:2.18.2-pg17
     container_name: 2bgreen-timescaledb
     ports:
       - "5432:5432"
