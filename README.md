@@ -53,7 +53,7 @@ docker compose ps        # timescaledb, kafka, keycloak should be "Up"
 
 | Service | Address | Credentials |
 |---|---|---|
-| TimescaleDB (PostgreSQL 17) | `localhost:5432`, database `2bgreen` | `postgres` / `postgres_dev` |
+| TimescaleDB (PostgreSQL 17) | `localhost:5432`, database `2bgreen` | admin only: `postgres` / `postgres_dev`. Apps: `grid_app` / `grid_dev`, `platform_app` / `platform_dev` (see below) |
 | Kafka (KRaft, single node) | `localhost:9092` | none |
 | Keycloak | http://localhost:8180 | admin console: `admin` / `admin` |
 
@@ -66,7 +66,8 @@ cd grid-intelligence && ./mvnw spring-boot:run     # http://localhost:8081
 cd platform          && ./mvnw spring-boot:run     # http://localhost:8080
 ```
 
-Flyway creates each app's schema (`grid`, `platform`) on startup.
+Each app connects with its own database role and Flyway runs its migrations in its own schema
+(see "Database roles" below). Override the defaults with the `DB_USER` and `DB_PASSWORD` environment variables.
 `curl http://localhost:8081/actuator/health` should return `{"status":"UP"}`.
 On the platform, every endpoint requires a JWT, so `curl -i http://localhost:8080/actuator/health`
 returning `401` is the expected result for now.
@@ -78,6 +79,24 @@ cd frontend
 npm install        # if it fails with "Cannot read properties of null (reading 'edgesOut')": npx npm@11 install
 npm start          # http://localhost:4200
 ```
+
+## Database roles
+
+One role per bounded context, so the database itself enforces that `platform` never reads schema `grid`
+(and the other way round). The script `infra/postgres/init/01-roles-and-schemas.sh` creates, on the first start
+of the TimescaleDB container:
+
+| Role | Password (dev) | Owns schema |
+|---|---|---|
+| `grid_app` | `grid_dev` | `grid` |
+| `platform_app` | `platform_dev` | `platform` |
+
+- Each role has no access at all to the other schema, and cannot create objects in `public`
+  (it only has `USAGE` there, for the TimescaleDB functions such as `time_bucket`).
+- The apps must not use `postgres`, which is for administration only.
+- Passwords can be changed through `GRID_APP_PASSWORD` and `PLATFORM_APP_PASSWORD` (see `.env.example`).
+- **Init scripts only run on an empty data volume.** After changing the script, recreate the volume:
+  `docker compose rm -sf timescaledb && docker volume rm 2bgreen_timescale-data && docker compose up -d`.
 
 ## Keycloak: realm `2bgreen`
 
@@ -117,10 +136,11 @@ List Kafka topics:
 docker exec 2bgreen-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 ```
 
-Open a SQL shell:
+Open a SQL shell (as admin, or as an app role to see what that app can see):
 
 ```bash
 docker exec -it 2bgreen-timescaledb psql -U postgres -d 2bgreen
+docker exec -it -e PGPASSWORD=grid_dev 2bgreen-timescaledb psql -h localhost -U grid_app -d 2bgreen
 ```
 
 ## Data sources

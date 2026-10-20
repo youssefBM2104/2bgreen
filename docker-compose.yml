@@ -2,7 +2,7 @@ name: 2bgreen
 
 services:
   timescaledb:
-    image: timescale/timescaledb:latest-pg17
+    image: timescale/timescaledb:2.18.2-pg17
     container_name: 2bgreen-timescaledb
     ports:
       - "5432:5432"
@@ -10,8 +10,11 @@ services:
       POSTGRES_DB: 2bgreen
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_dev
+      GRID_APP_PASSWORD: ${GRID_APP_PASSWORD:-grid_dev}
+      PLATFORM_APP_PASSWORD: ${PLATFORM_APP_PASSWORD:-platform_dev}
     volumes:
       - timescale-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
 
   kafka:
     image: apache/kafka:4.0.0
