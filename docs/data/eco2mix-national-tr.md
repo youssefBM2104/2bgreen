@@ -6,10 +6,11 @@ Source: ODRÉ Opendatasoft Explore API v2.1, RTE éCO2mix, national scope, real-
 
 - Time step is **15 min**.
 - Data lags real time by roughly 15-30 min (observed at 11:23 Paris: newest row with measures had `date_heure` = 09:00 UTC, i.e. ~2h15 behind wall clock but only ~15-30 min behind what RTE had actually measured at that point — the lag is in RTE's own publication, not in ODRÉ).
-- The dataset also contains **future, forecast-only rows** (up to the end of tomorrow): for those, `consommation` and every production field are `null`, but `prevision_j`/`prevision_j1` and the cross-border exchange fields (`ech_comm_*`) stay populated (verified 2026-10-20 — refines the earlier "every measure is null" note).
-  - **"Latest" must mean the latest row with non-null `consommation` / `taux_co2`**, not the latest row by `date_heure`.
-  - The anti-corruption layer (ACL) must not turn these forecast-only rows into `GridSnapshot`s.
-  - Verified 2026-10-20: 4896 total rows, 4772 with `consommation` non-null, 124 forecast-only (null `consommation`, non-null `prevision_j1`) — the split is clean, `4772 + 124 = 4896`, no rows fall outside either bucket. 124 rows × 15 min = 31h of forecasts, matching "rest of today + all of tomorrow" exactly.
+- The dataset also contains **future, forecast-only rows** (up to the end of tomorrow), and they come in **two distinct shapes** depending on how far out they are — refines the earlier "every measure is null" note:
+  - **Rest of today** (e.g. checked 2026-10-20 15:00 UTC): `consommation` and every production field are `null`, but `prevision_j`, `prevision_j1`, **and** the cross-border exchange fields (`ech_comm_*`) are all populated.
+  - **Tomorrow** (verified 2026-10-20 with a row for 2026-10-21 00:00 Paris): `prevision_j1` is the **only** non-null field. `prevision_j` and every `ech_comm_*` field are `null` too. Makes sense: `prevision_j` is today's own, intraday-updated forecast and simply has no value for a day it doesn't cover; `prevision_j1` was produced the day before and already covers tomorrow. The exchange forecasts (`ech_comm_*`) follow `prevision_j`'s same-day-only pattern, not `prevision_j1`'s.
+  - Either way: **"latest" must mean the latest row with non-null `consommation` / `taux_co2`**, not the latest row by `date_heure`, and the ACL must not turn either shape of forecast-only row into a `GridSnapshot`.
+  - Verified 2026-10-20: 4896 total rows, 4772 with `consommation` non-null, 124 forecast-only — split cleanly as 96 "tomorrow" rows (a full day, confirmed by a direct query) + 28 "rest of today" rows (7 hours from the 15:00 UTC checkpoint to Paris midnight) = 124.
 
 ## Historical depth
 
@@ -68,9 +69,10 @@ These exist in the raw dataset but are not carried into `GridSnapshot`.
 
 Required by the hard rule "CI and tests never call the live ODRÉ API". Committed under `grid-intelligence/src/test/resources/odre/`, captured live on 2026-10-20:
 - `national-tr-measured.json` — latest row with non-null `consommation` (`date_heure` 2026-10-20T14:45:00+00:00)
-- `national-tr-forecast-only.json` — forecast-only row immediately following it (`date_heure` 2026-10-20T15:00:00+00:00), demonstrating that production/consumption are null while `prevision_j1` and `ech_comm_*` stay populated
+- `national-tr-forecast-only.json` — "rest of today" forecast row (`date_heure` 2026-10-20T15:00:00+00:00): `prevision_j`, `prevision_j1` and `ech_comm_*` all populated, everything else null
+- `national-tr-forecast-tomorrow.json` — genuine next-day forecast row (`date_heure` 2026-10-20T22:00:00+00:00, i.e. 2026-10-21 00:00 Paris): only `prevision_j1` is non-null — `prevision_j` and `ech_comm_*` are null here too, unlike the "rest of today" shape above
 
-Both are raw, unmodified Explore v2.1 API responses (the `{"total_count": ..., "results": [...]}` envelope), so the ACL/deserializer tests exercise the real response shape.
+All three are raw, unmodified Explore v2.1 API responses (the `{"total_count": ..., "results": [...]}` envelope), so the ACL/deserializer tests exercise the real response shape and both forecast-only shapes.
 
 ## Open items for later
 
