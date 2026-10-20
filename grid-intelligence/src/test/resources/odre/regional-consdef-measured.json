@@ -1,0 +1,39 @@
+{
+    "total_count": 2867272,
+    "results": [
+        {
+            "code_insee_region": "76",
+            "libelle_region": "Occitanie",
+            "nature": "Données consolidées",
+            "date": "2026-08-31",
+            "heure": "23:30",
+            "date_heure": "2026-08-31T21:30:00+00:00",
+            "consommation": 3805,
+            "thermique": 1,
+            "nucleaire": 1257,
+            "eolien": "376",
+            "solaire": 2,
+            "hydraulique": 1167,
+            "pompage": 0,
+            "bioenergies": 68,
+            "ech_physiques": 934,
+            "stockage_batterie": 0,
+            "destockage_batterie": 0,
+            "eolien_terrestre": 320,
+            "eolien_offshore": 56,
+            "tco_thermique": 0.03,
+            "tch_thermique": 0.38,
+            "tco_nucleaire": 33.04,
+            "tch_nucleaire": 47.98,
+            "tco_eolien": 9.88,
+            "tch_eolien": 20.43,
+            "tco_solaire": 0.05,
+            "tch_solaire": 0.04,
+            "tco_hydraulique": 30.67,
+            "tch_hydraulique": 21.76,
+            "tco_bioenergies": 1.79,
+            "tch_bioenergies": 38.2,
+            "column_30": null
+        }
+    ]
+}

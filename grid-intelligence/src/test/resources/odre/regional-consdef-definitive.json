@@ -1,0 +1,39 @@
+{
+    "total_count": 2727328,
+    "results": [
+        {
+            "code_insee_region": "52",
+            "libelle_region": "Pays de la Loire",
+            "nature": "Données définitives",
+            "date": "2025-12-31",
+            "heure": "23:30",
+            "date_heure": "2025-12-31T22:30:00+00:00",
+            "consommation": 4413,
+            "thermique": 509,
+            "nucleaire": 0,
+            "eolien": "870",
+            "solaire": 0,
+            "hydraulique": 2,
+            "pompage": 0,
+            "bioenergies": 61,
+            "ech_physiques": 2973,
+            "stockage_batterie": 0,
+            "destockage_batterie": 0,
+            "eolien_terrestre": 338,
+            "eolien_offshore": 532,
+            "tco_thermique": 11.53,
+            "tch_thermique": 25.69,
+            "tco_nucleaire": 0.0,
+            "tch_nucleaire": null,
+            "tco_eolien": 19.71,
+            "tch_eolien": 37.04,
+            "tco_solaire": 0.0,
+            "tch_solaire": 0.0,
+            "tco_hydraulique": 0.05,
+            "tch_hydraulique": 20.0,
+            "tco_bioenergies": 1.38,
+            "tch_bioenergies": 67.78,
+            "column_30": null
+        }
+    ]
+}
