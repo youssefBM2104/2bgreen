@@ -10,8 +10,11 @@ services:
       POSTGRES_DB: 2bgreen
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_dev
+      GRID_APP_PASSWORD: ${GRID_APP_PASSWORD:-grid_dev}
+      PLATFORM_APP_PASSWORD: ${PLATFORM_APP_PASSWORD:-platform_dev}
     volumes:
       - timescale-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
 
   kafka:
     image: apache/kafka:4.0.0
