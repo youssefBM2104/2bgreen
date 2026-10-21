@@ -18,7 +18,7 @@ class TestcontainersConfiguration {
 	@Bean
 	@ServiceConnection
 	PostgreSQLContainer postgres() {
-		return new PostgreSQLContainer(TIMESCALEDB);
+		return new PostgreSQLContainer(TIMESCALEDB).withInitScript("platform-schema.sql");
 	}
 
 	@Bean
