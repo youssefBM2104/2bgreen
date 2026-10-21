@@ -1,0 +1,39 @@
+{
+    "total_count": 2867296,
+    "results": [
+        {
+            "code_insee_region": "53",
+            "libelle_region": "Bretagne",
+            "nature": "Données définitives",
+            "date": "2013-01-01",
+            "heure": "00:00",
+            "date_heure": "2012-12-31T23:00:00+00:00",
+            "consommation": null,
+            "thermique": null,
+            "nucleaire": null,
+            "eolien": "ND",
+            "solaire": null,
+            "hydraulique": null,
+            "pompage": null,
+            "bioenergies": null,
+            "ech_physiques": null,
+            "stockage_batterie": null,
+            "destockage_batterie": null,
+            "eolien_terrestre": null,
+            "eolien_offshore": null,
+            "tco_thermique": null,
+            "tch_thermique": null,
+            "tco_nucleaire": null,
+            "tch_nucleaire": null,
+            "tco_eolien": null,
+            "tch_eolien": null,
+            "tco_solaire": null,
+            "tch_solaire": null,
+            "tco_hydraulique": null,
+            "tch_hydraulique": null,
+            "tco_bioenergies": null,
+            "tch_bioenergies": null,
+            "column_30": null
+        }
+    ]
+}

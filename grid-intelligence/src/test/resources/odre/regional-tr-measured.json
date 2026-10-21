@@ -1,0 +1,37 @@
+{
+    "total_count": 57264,
+    "results": [
+        {
+            "code_insee_region": "32",
+            "libelle_region": "Hauts-de-France",
+            "nature": "Données temps réel",
+            "date": "2026-10-20",
+            "heure": "16:45",
+            "date_heure": "2026-10-20T14:45:00+00:00",
+            "consommation": 5539,
+            "thermique": 1173,
+            "nucleaire": 3562,
+            "eolien": 1374,
+            "solaire": 50,
+            "hydraulique": 3,
+            "pompage": "0",
+            "bioenergies": 79,
+            "ech_physiques": -701,
+            "stockage_batterie": "0",
+            "destockage_batterie": "0",
+            "tco_thermique": 21.18,
+            "tch_thermique": 49.24,
+            "tco_nucleaire": 64.31,
+            "tch_nucleaire": 65.24,
+            "tco_eolien": 24.81,
+            "tch_eolien": 20.61,
+            "tco_solaire": 0.9,
+            "tch_solaire": 3.98,
+            "tco_hydraulique": 0.05,
+            "tch_hydraulique": 75.0,
+            "tco_bioenergies": 1.43,
+            "tch_bioenergies": 40.51,
+            "column_68": null
+        }
+    ]
+}
