@@ -1,0 +1,1 @@
+[{"name":"com.twobgreen.platform.RoleProbeController","comment":"Test-only endpoints to exercise role checks; lives in src/test so it never ships."}]
