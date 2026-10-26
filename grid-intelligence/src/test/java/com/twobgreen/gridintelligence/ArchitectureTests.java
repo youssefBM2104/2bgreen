@@ -20,4 +20,11 @@ class ArchitectureTests {
 		.that().resideInAPackage("..application..")
 		.should().dependOnClassesThat()
 		.resideInAPackage("..infrastructure..");
+
+	// Anti-corruption layer: ODRÉ field names and DTOs exist only in infrastructure.odre
+	@ArchTest
+	static final ArchRule odreStaysInsideTheAntiCorruptionLayer = noClasses()
+		.that().resideOutsideOfPackage("..infrastructure.odre..")
+		.should().dependOnClassesThat()
+		.resideInAPackage("..infrastructure.odre..");
 }

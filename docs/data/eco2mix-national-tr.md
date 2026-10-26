@@ -74,6 +74,9 @@ Required by the hard rule "CI and tests never call the live ODRÉ API". Committe
 
 All three are raw, unmodified Explore v2.1 API responses (the `{"total_count": ..., "results": [...]}` envelope), so the ACL/deserializer tests exercise the real response shape and both forecast-only shapes.
 
+One more fixture is **hand-made, not a live capture** (D4), because no national-tr row with missing values has been observed:
+- `national-tr-missing-values-synthetic.json` — copy of `national-tr-measured.json` where some measures were replaced by every "missing" shape the ACL must handle: `taux_co2` null, `prevision_j` `" "`, `gaz` `""`, `eolien` `"ND"` and `solaire` `"-"` (the sentinels seen in regional data), `bioenergies` `"abc"`, plus `hydraulique` `"3768"` (a number sent as text, which must be kept).
+
 ## Open items for later
 
 - Whether `/exports` beats paged `/records` for backfill, and how each counts against quota — still unverified, matters more for `cons-def`.
