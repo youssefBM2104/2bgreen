@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  no-live-odre:
+    name: no-live-odre
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Tests must use fixtures / FakeOdreServer, never the real ODRÉ API (50,000 calls/month quota)
+      - name: Fail if a test references the live ODRÉ host
+        run: |
+          if grep -rn "odre.opendatasoft.com" platform/src/test grid-intelligence/src/test frontend/src; then
+            echo "A test references the live ODRÉ API. Use a fixture or FakeOdreServer."
+            exit 1
+          fi
+
+  platform:
+    name: platform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Tests read ../infra/postgres/init, so Maven must run from the module directory
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      # Testcontainers starts TimescaleDB and Kafka itself (Docker is available on the runner)
+      - run: ./mvnw -B verify
+
+  grid-intelligence:
+    name: grid-intelligence
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: grid-intelligence
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - run: ./mvnw -B verify
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # npm 10 can crash with "Cannot read properties of null (reading 'edgesOut')"
+      - run: npm install -g npm@11
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:ci
+      - run: npm run build
