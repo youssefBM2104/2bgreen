@@ -1,4 +1,4 @@
-package com.twobgreen.gridintelligence.infrastructure.stream;
+package com.twobgreen.gridintelligence.infrastructure.messaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -100,6 +100,25 @@ class SnapshotMessagesTests {
 		assertInvalid("{" + valid + ", \"consumption\": 49970.5}");
 		assertInvalid("{" + valid + ", \"production\": {\"wind\": \"ND\"}}");
 		assertInvalid("{" + valid + ", \"estimated\": \"yes\"}");
+	}
+
+	@Test
+	void receivedEventParsesBackToTheSameSnapshot() {
+		// What the poller writes is what the stream reads
+		for (String message : new String[] { SnapshotJson.NATIONAL_MEASURED, SnapshotJson.REGION_MISSING_VALUES }) {
+			GridSnapshot snapshot = messages.parse(message);
+
+			assertThat(messages.parse(messages.receivedEvent(snapshot))).isEqualTo(snapshot);
+		}
+	}
+
+	@Test
+	void receivedEventHasNoStoredAt() {
+		JsonNode event = json.readTree(messages.receivedEvent(messages.parse(SnapshotJson.NATIONAL_MEASURED)));
+
+		assertThat(event.has("storedAt")).isFalse();
+		assertThat(event.path("schemaVersion").intValue()).isEqualTo(1);
+		assertThat(event.path("quality").stringValue()).isEqualTo("PROVISIONAL");
 	}
 
 	@Test

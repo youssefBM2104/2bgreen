@@ -72,6 +72,16 @@ Each app connects with its own database role and Flyway runs its migrations in i
 On the platform, every endpoint requires a JWT, so `curl -i http://localhost:8080/actuator/health`
 returning `401` is the expected result for now.
 
+`grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
+(poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):
+
+```bash
+cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=poller,stream
+```
+
+On an empty database the first poll backfills everything `eco2mix-national-tr` holds (since 2026-09-01, about
+50 ODRÉ calls, once). Settings: `src/main/resources/application-poller.properties`.
+
 ### 3. Frontend
 
 ```bash
