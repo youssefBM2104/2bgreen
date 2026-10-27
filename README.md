@@ -16,7 +16,9 @@ Course project: Ingénierie des Architectures Logicielles, Polytech Nice Sophia.
 ## Status
 
 Environment and project skeletons are in place: infrastructure runs, both backends and the frontend start,
-Keycloak has the realm, roles and test users. **No business code yet.**
+Keycloak has the realm, roles and test users. The national **speed layer** works end to end on real data:
+ODRÉ → poller → Kafka → stream → TimescaleDB (`grid-intelligence`). The read API, the platform features and the
+frontend pages are not built yet.
 
 ## Architecture (target)
 
@@ -80,7 +82,10 @@ cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=poller
 ```
 
 On an empty database the first poll backfills everything `eco2mix-national-tr` holds (since 2026-09-01, about
-50 ODRÉ calls, once). Settings: `src/main/resources/application-poller.properties`.
+50 ODRÉ calls, once). Settings: `src/main/resources/application-poller.properties`. Kafka clients log their whole
+configuration at startup; to keep only the app's own lines, add
+`-Dspring-boot.run.arguments="--logging.level.org.apache.kafka=WARN"`. How to check the result: see
+"Checking the speed layer" below.
 
 ### 3. Frontend
 
@@ -107,6 +112,8 @@ of the TimescaleDB container:
 - Passwords can be changed through `GRID_APP_PASSWORD` and `PLATFORM_APP_PASSWORD` (see `.env.example`).
 - **Init scripts only run on an empty data volume.** After changing the script, recreate the volume:
   `docker compose rm -sf timescaledb && docker volume rm 2bgreen_timescale-data && docker compose up -d`.
+- Same fix if `psql` fails with `could not access file "$libdir/timescaledb-<version>"`: the volume was created
+  by another TimescaleDB image than the pinned one in `docker-compose.yml`.
 
 ## Keycloak: realm `2bgreen`
 
@@ -152,6 +159,38 @@ Open a SQL shell (as admin, or as an app role to see what that app can see):
 docker exec -it 2bgreen-timescaledb psql -U postgres -d 2bgreen
 docker exec -it -e PGPASSWORD=grid_dev 2bgreen-timescaledb psql -h localhost -U grid_app -d 2bgreen
 ```
+
+### Checking the speed layer
+
+With `poller,stream` running (see "Backends"). These read real data, they cost no ODRÉ call.
+
+```bash
+alias gsql='docker exec 2bgreen-timescaledb psql -U postgres -d 2bgreen -c'
+
+# Rows stored: max should be ~30-60 min behind now (ODRÉ's publication lag), never in the future
+gsql "SELECT count(*), min(observed_at), max(observed_at) FROM grid.speed_snapshot WHERE scope='national'"
+
+# No forecast row became a snapshot: expect 0
+gsql "SELECT count(*) FROM grid.speed_snapshot WHERE consumption IS NULL"
+
+# Gaps in the 15-min series. Expected: only 2026-10-25 01:00 (missing at the source, see docs/data/eco2mix-national-tr.md)
+gsql "SELECT observed_at, gap FROM (SELECT observed_at, observed_at - lag(observed_at) OVER (ORDER BY observed_at) AS gap
+      FROM grid.speed_snapshot WHERE scope='national') g WHERE gap <> interval '15 minutes'"
+
+# Messages: key = scope, K1 JSON; the stored topic adds storedAt
+K=/opt/kafka/bin
+docker exec 2bgreen-kafka $K/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic grid.snapshot-received --from-beginning --property print.key=true --max-messages 2
+docker exec 2bgreen-kafka $K/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic grid.snapshot-stored --from-beginning --property print.key=true --max-messages 2
+
+# Messages per partition: each poll adds ~4-5 (the 1 h overlap, absorbed by the upsert), not thousands
+docker exec 2bgreen-kafka $K/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic grid.snapshot-received
+```
+
+To see a failure handled, run the app with `--odre.base-url=http://localhost:9` (ODRÉ unreachable) or
+`docker stop 2bgreen-kafka` while it runs: each tick logs one warning or error, the app stays `UP`, and once the
+dependency is back the next poll resumes from the same `after` (nothing skipped).
 
 ## Data sources
 

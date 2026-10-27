@@ -24,6 +24,7 @@ Source: ODRÉ Opendatasoft Explore API v2.1, RTE éCO2mix, national scope, real-
 
 - `date_heure` is **UTC** and is the **only** timestamp field to use.
 - `date` and `heure` are Paris local time (CET/CEST) — **ignore them**, they carry a DST ambiguity that `date_heure` doesn't have.
+- **Autumn DST night: one hour is missing at the source** (verified 2026-10-27, D6 live run). On 2026-10-25, when Paris went from 03:00 CEST back to 02:00 CET, the dataset jumps from `2026-10-24T23:45Z` (`heure` 01:45) to `2026-10-25T01:00Z` (`heure` 02:00): the 4 rows `00:00Z`–`00:45Z`, i.e. the *first* occurrence of the repeated 02:00–02:45, do not exist. RTE apparently keyed that night by local time and kept one copy of the repeated hour. Not a bug of our pipeline: `speed_snapshot` has the same hole, which is a valid "missing" state (K1). Same 4-row shortfall as the DST caveat noted for cons-def; whether the batch layer can fill it from cons-def is to check later.
 
 ## Consolidated vs definitive
 
