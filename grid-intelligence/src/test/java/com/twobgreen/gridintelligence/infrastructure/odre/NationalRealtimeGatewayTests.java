@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -19,14 +21,29 @@ class NationalRealtimeGatewayTests {
 
 	private static final Instant AFTER = Instant.parse("2026-10-20T14:15:00Z");
 
+	// Not whole seconds on purpose: the bound sent to ODRÉ must be
+	private static final Clock NOW = Clock.fixed(Instant.parse("2026-10-20T15:05:12.345Z"), ZoneOffset.UTC);
+
 	private final FakeOdreServer odre = new FakeOdreServer();
 
 	private final OdreGateway gateway = new NationalRealtimeGateway(OdreClient.create(
-			new OdreProperties(odre.baseUrl(), Duration.ofSeconds(1), Duration.ofSeconds(1), 100)));
+			new OdreProperties(odre.baseUrl(), Duration.ofSeconds(1), Duration.ofSeconds(1), 100)), NOW);
 
 	@AfterEach
 	void stopServer() {
 		odre.close();
+	}
+
+	@Test
+	void asksOnlyUpToNowSoTheForecastTailStaysOnOdre() {
+		odre.reply(200, """
+				{"total_count": 0, "results": []}
+				""");
+
+		gateway.nationalReadingsAfter(AFTER);
+
+		assertThat(odre.requests()).singleElement().extracting(request -> request.getQuery()).asString()
+				.contains("date_heure > date'2026-10-20T14:15:00Z' and date_heure < date'2026-10-20T15:05:12Z'");
 	}
 
 	@Test

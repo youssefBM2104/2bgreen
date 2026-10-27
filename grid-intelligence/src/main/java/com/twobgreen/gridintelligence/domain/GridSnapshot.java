@@ -29,6 +29,9 @@ public record GridSnapshot(
 		Quality quality,
 		boolean estimated) {
 
+	/** Scope of the whole of France. Regions are {@code region:<code>}. */
+	public static final String NATIONAL_SCOPE = "national";
+
 	public GridSnapshot {
 		if (scope == null || scope.isBlank()) {
 			throw new IllegalArgumentException("scope is required");

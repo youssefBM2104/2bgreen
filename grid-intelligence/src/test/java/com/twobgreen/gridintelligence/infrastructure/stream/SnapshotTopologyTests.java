@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -25,6 +26,8 @@ import tools.jackson.databind.json.JsonMapper;
 import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
 import com.twobgreen.gridintelligence.application.StoreSnapshot;
 import com.twobgreen.gridintelligence.domain.GridSnapshot;
+import com.twobgreen.gridintelligence.infrastructure.messaging.SnapshotJson;
+import com.twobgreen.gridintelligence.infrastructure.messaging.SnapshotMessages;
 import com.twobgreen.gridintelligence.infrastructure.messaging.Topics;
 
 /** Topology logic without Kafka or a database: the repository is an in-memory fake keyed like the real table. */
@@ -124,6 +127,12 @@ class SnapshotTopologyTests {
 			history.add(snapshot);
 			rows.put(snapshot.scope() + "@" + snapshot.observedAt(), snapshot);
 			return Instant.parse("2026-10-20T15:00:00Z");
+		}
+
+		@Override
+		public Optional<Instant> latestObservedAt(String scope) {
+			return history.stream().filter(s -> s.scope().equals(scope)).map(GridSnapshot::observedAt)
+					.max(Instant::compareTo);
 		}
 	}
 }

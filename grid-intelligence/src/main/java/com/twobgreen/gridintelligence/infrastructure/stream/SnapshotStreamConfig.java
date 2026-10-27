@@ -13,6 +13,7 @@ import org.springframework.kafka.config.StreamsBuilderFactoryBeanConfigurer;
 
 import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
 import com.twobgreen.gridintelligence.application.StoreSnapshot;
+import com.twobgreen.gridintelligence.infrastructure.messaging.SnapshotMessages;
 
 /**
  * The speed layer stream, only started with the {@code stream} profile. The application id
