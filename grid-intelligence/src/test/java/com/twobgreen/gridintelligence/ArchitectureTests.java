@@ -21,6 +21,13 @@ class ArchitectureTests {
 		.should().dependOnClassesThat()
 		.resideInAPackage("..infrastructure..");
 
+	// Controllers go through the use cases, never straight to the database
+	@ArchTest
+	static final ArchRule apiDoesNotTouchPersistence = noClasses()
+		.that().resideInAPackage("..infrastructure.api..")
+		.should().dependOnClassesThat()
+		.resideInAPackage("..infrastructure.persistence..");
+
 	// Anti-corruption layer: ODRÉ field names and DTOs exist only in infrastructure.odre
 	@ArchTest
 	static final ArchRule odreStaysInsideTheAntiCorruptionLayer = noClasses()
