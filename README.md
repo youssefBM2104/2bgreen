@@ -71,6 +71,9 @@ cd platform          && ./mvnw spring-boot:run     # http://localhost:8080
 Each app connects with its own database role and Flyway runs its migrations in its own schema
 (see "Database roles" below). Override the defaults with the `DB_USER` and `DB_PASSWORD` environment variables.
 `curl http://localhost:8081/actuator/health` should return `{"status":"UP"}`.
+`grid-intelligence` also serves its read API (contract K2, `docs/api/`) in every run mode:
+`curl -i http://localhost:8081/api/v1/national/snapshots/latest` returns `404` (`NO_DATA`) until a snapshot is stored.
+It is an internal API with no authentication: keep it on the Docker network, never expose it publicly.
 On the platform, every endpoint requires a JWT, so `curl -i http://localhost:8080/actuator/health`
 returning `401` is the expected result for now.
 
