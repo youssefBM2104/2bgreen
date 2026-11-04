@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "Service unavailable",
+  "status": 503,
+  "detail": "The database is not reachable.",
+  "instance": "/api/v1/national/snapshots/latest",
+  "code": "SERVICE_UNAVAILABLE"
+}

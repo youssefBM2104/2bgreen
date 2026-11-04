@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "Unknown scope",
+  "status": 404,
+  "detail": "Region 'xx' is not recognised.",
+  "instance": "/api/v1/regions/xx/snapshots/latest",
+  "code": "SCOPE_UNKNOWN"
+}

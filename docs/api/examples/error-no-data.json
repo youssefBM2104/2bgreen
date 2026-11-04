@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "No data",
+  "status": 404,
+  "detail": "No snapshot with measures has been stored yet.",
+  "instance": "/api/v1/national/snapshots/latest",
+  "code": "NO_DATA"
+}
