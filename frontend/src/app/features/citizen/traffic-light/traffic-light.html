@@ -1,0 +1,52 @@
+<section class="card" aria-labelledby="traffic-light-title" aria-live="polite">
+  <h2 id="traffic-light-title">État du réseau en ce moment</h2>
+
+  @switch (state().kind) {
+    @case ('loading') {
+      <p>Chargement…</p>
+    }
+    @case ('noData') {
+      <p class="title">Pas encore de données</p>
+      <p>Aucune mesure du réseau n'est disponible pour l'instant.</p>
+    }
+    @case ('unavailable') {
+      <p class="title">Données indisponibles</p>
+      <p>Impossible de lire l'état du réseau. Réessayez dans quelques minutes.</p>
+    }
+    @case ('ready') {
+      @let current = reading()!;
+      <div class="content">
+        <div class="lamps" aria-hidden="true">
+          <span class="lamp red" [class.on]="current.level === 'RED'"></span>
+          <span class="lamp amber" [class.on]="current.level === 'AMBER'"></span>
+          <span class="lamp green" [class.on]="current.level === 'GREEN'"></span>
+        </div>
+        <div>
+          @if (current.stale) {
+            <p class="title">Données trop anciennes</p>
+            <p>Ce feu ne reflète pas l'état actuel du réseau.</p>
+            <p class="details">
+              @if (current.co2Intensity !== null) {
+                Dernière valeur connue : {{ current.co2Intensity }} gCO₂éq/kWh, mesurée le
+              } @else {
+                Dernière mesure le
+              }
+              {{ time(current.observedAt) }}
+            </p>
+          } @else {
+            <p class="title">{{ messages[current.level].title }}</p>
+            <p>{{ messages[current.level].hint }}</p>
+            <p class="details">
+              @if (current.co2Intensity !== null) {
+                {{ current.co2Intensity }} gCO₂éq/kWh, mesuré le
+              } @else {
+                Mesure du
+              }
+              {{ time(current.observedAt) }}
+            </p>
+          }
+        </div>
+      </div>
+    }
+  }
+</section>

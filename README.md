@@ -85,8 +85,20 @@ never moves, so the app logs a warning at startup:
 cd platform && ./mvnw spring-boot:run -Dspring-boot.run.arguments="--grid.client.mode=stub"
 ```
 
-`GET /api/v1/advisory/grid/latest` (role `citizen`) returns the latest national reading. Errors are Problem Details
-with a stable `code`: `404` `NO_DATA` (nothing stored yet), `503` `GRID_UNAVAILABLE` (grid data cannot be read).
+`GET /api/v1/advisory/traffic-light` (role `citizen`) returns the citizen's traffic light: `level` (`GREEN`, `AMBER`,
+`RED` or `UNKNOWN`), `co2Intensity`, `observedAt` and `stale`. Errors are Problem Details with a stable `code`:
+`404` `NO_DATA` (nothing stored yet), `503` `GRID_UNAVAILABLE` (grid data cannot be read).
+
+| Setting (`advisory.traffic-light.*`) | Value | Meaning |
+|---|---|---|
+| `green-below` | `20` | Below this many gCO2eq/kWh, the light is green |
+| `amber-below` | `40` | Below this, the light is amber; from this value, it is red |
+| `max-age` | `PT2H` | A reading older than this is `stale`: no colour, level `UNKNOWN` |
+
+The limits are a proposal, to validate as a team. They come from 6,234 national readings (2026-09-01 to 2026-11-04,
+median 24, max 65) and split them into about 40% green, 35% amber and 25% red. That is autumn data only, so they are
+to re-check in winter. The stub's reading is always `stale`; to see a colour with it, add
+`--advisory.traffic-light.max-age=P3650D`.
 
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
 (poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):

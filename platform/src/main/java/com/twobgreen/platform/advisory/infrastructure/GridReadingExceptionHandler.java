@@ -10,11 +10,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.twobgreen.platform.advisory.application.GridUnavailableException;
 
 /**
- * Errors of {@link GridReadingController} as RFC 7807 Problem Details, with a stable {@code code} like the read API.
+ * Errors of {@link TrafficLightController} as RFC 7807 Problem Details, with a stable {@code code} like the read API.
  * No catch-all here: it would also catch the access-denied exception of {@code @PreAuthorize} and turn a 403 into
  * a 500.
  */
-@RestControllerAdvice(assignableTypes = GridReadingController.class)
+@RestControllerAdvice(assignableTypes = TrafficLightController.class)
 class GridReadingExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GridReadingExceptionHandler.class);
