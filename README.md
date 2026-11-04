@@ -77,6 +77,17 @@ It is an internal API with no authentication: keep it on the Docker network, nev
 On the platform, every endpoint requires a JWT, so `curl -i http://localhost:8080/actuator/health`
 returning `401` is the expected result for now.
 
+The platform reads grid data from the read API of `grid-intelligence` (`grid.client.mode=rest`, the default). To work
+without `grid-intelligence`, Kafka and their data, serve the fixed K2 example instead. This data is fake and its date
+never moves, so the app logs a warning at startup:
+
+```bash
+cd platform && ./mvnw spring-boot:run -Dspring-boot.run.arguments="--grid.client.mode=stub"
+```
+
+`GET /api/v1/advisory/grid/latest` (role `citizen`) returns the latest national reading. Errors are Problem Details
+with a stable `code`: `404` `NO_DATA` (nothing stored yet), `503` `GRID_UNAVAILABLE` (grid data cannot be read).
+
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
 (poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):
 
