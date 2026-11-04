@@ -79,6 +79,22 @@ class SpeedSnapshotRepositoryTests {
 				"SELECT estimated FROM speed_snapshot WHERE scope = 'region:76'", Boolean.class)).isTrue();
 	}
 
+	@Test
+	void latestObservedAtIsEmptyWhenNothingIsStored() {
+		assertThat(repository.latestObservedAt("national")).isEmpty();
+	}
+
+	@Test
+	void latestObservedAtIsTheNewestReadingOfThatScopeOnly() {
+		repository.upsert(measured(29));
+		repository.upsert(new GridSnapshot("national", OBSERVED_AT.minusSeconds(900), null, 49000, null, null, null,
+				null, Quality.PROVISIONAL, false));
+		repository.upsert(new GridSnapshot("region:76", OBSERVED_AT.plusSeconds(900), null, 3805, null, null, null,
+				null, Quality.PROVISIONAL, true));
+
+		assertThat(repository.latestObservedAt("national")).contains(OBSERVED_AT);
+	}
+
 	private int count() {
 		return jdbc.queryForObject("SELECT count(*) FROM speed_snapshot", Integer.class);
 	}

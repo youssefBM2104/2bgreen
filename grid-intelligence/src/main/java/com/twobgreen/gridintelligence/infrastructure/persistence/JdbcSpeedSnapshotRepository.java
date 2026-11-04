@@ -2,6 +2,7 @@ package com.twobgreen.gridintelligence.infrastructure.persistence;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Optional;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
@@ -47,6 +48,11 @@ class JdbcSpeedSnapshotRepository implements SpeedSnapshotRepository {
 			RETURNING stored_at
 			""";
 
+	// Zero or one row; walks the hypertable's (observed_at DESC) index instead of aggregating
+	private static final String LATEST = """
+			SELECT observed_at FROM speed_snapshot WHERE scope = :scope ORDER BY observed_at DESC LIMIT 1
+			""";
+
 	private final JdbcClient jdbc;
 
 	JdbcSpeedSnapshotRepository(JdbcClient jdbc) {
@@ -77,5 +83,14 @@ class JdbcSpeedSnapshotRepository implements SpeedSnapshotRepository {
 				.query(Timestamp.class)
 				.single();
 		return storedAt.toInstant();
+	}
+
+	@Override
+	public Optional<Instant> latestObservedAt(String scope) {
+		return jdbc.sql(LATEST)
+				.param("scope", scope)
+				.query(Timestamp.class)
+				.optional()
+				.map(Timestamp::toInstant);
 	}
 }

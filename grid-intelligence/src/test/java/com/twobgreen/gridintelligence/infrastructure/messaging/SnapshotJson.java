@@ -1,12 +1,12 @@
-package com.twobgreen.gridintelligence.infrastructure.stream;
+package com.twobgreen.gridintelligence.infrastructure.messaging;
 
 /**
  * K1 messages used by the stream tests. The first one carries the values of the committed fixture
  * {@code national-tr-measured.json} (2026-10-20T14:45Z); the second shows missing values.
  */
-final class SnapshotJson {
+public final class SnapshotJson {
 
-	static final String NATIONAL_MEASURED = """
+	public static final String NATIONAL_MEASURED = """
 			{
 			  "schemaVersion": 1,
 			  "scope": "national",
@@ -33,7 +33,7 @@ final class SnapshotJson {
 			""";
 
 	/** Regional style: no CO2, no forecasts, fossil aggregate only, several fields absent instead of null. */
-	static final String REGION_MISSING_VALUES = """
+	public static final String REGION_MISSING_VALUES = """
 			{
 			  "schemaVersion": 1,
 			  "scope": "region:76",

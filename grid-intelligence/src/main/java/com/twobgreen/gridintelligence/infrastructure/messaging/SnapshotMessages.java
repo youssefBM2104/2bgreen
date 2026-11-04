@@ -1,4 +1,4 @@
-package com.twobgreen.gridintelligence.infrastructure.stream;
+package com.twobgreen.gridintelligence.infrastructure.messaging;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -19,14 +19,20 @@ import com.twobgreen.gridintelligence.domain.Quality;
  * JSON wire format of contract K1 ({@code docs/contracts/events.md}) <-> domain.
  * Reading is tolerant where K1 says so (missing fields can be absent or {@code null}, unknown fields are ignored)
  * and strict everywhere else: a wrong type or a bad value rejects the whole message.
+ * <p>
+ * The one K1 codec of the app: the poller writes with it, the stream reads and writes with it, so what one side
+ * produces is what the other side accepts.
  */
-class SnapshotMessages {
+public class SnapshotMessages {
 
 	static final int SCHEMA_VERSION = 1;
 
 	private final JsonMapper mapper = JsonMapper.builder().build();
 
-	GridSnapshot parse(String json) {
+	/**
+	 * @throws InvalidSnapshotMessageException if the message does not respect K1
+	 */
+	public GridSnapshot parse(String json) {
 		if (json == null || json.isBlank()) {
 			throw new InvalidSnapshotMessageException("empty message");
 		}
@@ -76,9 +82,19 @@ class SnapshotMessages {
 		}
 	}
 
+	/** The {@code grid.snapshot-received} payload, published by the poller. */
+	public String receivedEvent(GridSnapshot snapshot) {
+		return mapper.writeValueAsString(payload(snapshot));
+	}
+
 	/** The {@code grid.snapshot-stored} payload: the received one plus {@code storedAt}. */
-	String storedEvent(StoredSnapshot stored) {
-		GridSnapshot snapshot = stored.snapshot();
+	public String storedEvent(StoredSnapshot stored) {
+		ObjectNode root = payload(stored.snapshot());
+		root.put("storedAt", stored.storedAt().toString());
+		return mapper.writeValueAsString(root);
+	}
+
+	private ObjectNode payload(GridSnapshot snapshot) {
 		Production production = snapshot.production();
 
 		ObjectNode root = mapper.createObjectNode();
@@ -102,8 +118,7 @@ class SnapshotMessages {
 		root.put("pumping", snapshot.pumping());
 		root.put("quality", snapshot.quality().name());
 		root.put("estimated", snapshot.estimated());
-		root.put("storedAt", stored.storedAt().toString());
-		return mapper.writeValueAsString(root);
+		return root;
 	}
 
 	private static boolean missing(JsonNode node) {

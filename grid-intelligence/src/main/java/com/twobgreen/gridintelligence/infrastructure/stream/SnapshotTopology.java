@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import com.twobgreen.gridintelligence.application.StoreSnapshot;
 import com.twobgreen.gridintelligence.domain.GridSnapshot;
 import com.twobgreen.gridintelligence.domain.Quality;
+import com.twobgreen.gridintelligence.infrastructure.messaging.InvalidSnapshotMessageException;
+import com.twobgreen.gridintelligence.infrastructure.messaging.SnapshotMessages;
 import com.twobgreen.gridintelligence.infrastructure.messaging.Topics;
 
 /**

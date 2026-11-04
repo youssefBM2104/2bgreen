@@ -1,5 +1,7 @@
 package com.twobgreen.gridintelligence.infrastructure.odre;
 
+import java.time.Clock;
+
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,6 +23,6 @@ class OdreClientConfig {
 
 	@Bean
 	OdreGateway odreGateway(OdreClient client) {
-		return new NationalRealtimeGateway(client);
+		return new NationalRealtimeGateway(client, Clock.systemUTC());
 	}
 }

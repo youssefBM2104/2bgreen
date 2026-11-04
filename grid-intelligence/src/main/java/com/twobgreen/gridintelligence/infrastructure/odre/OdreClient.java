@@ -64,22 +64,30 @@ class OdreClient {
 	}
 
 	/**
-	 * Every row of {@code eco2mix-national-tr} with {@code date_heure} strictly after {@code after}, oldest first,
-	 * all pages included. Forecast-only rows are returned too: dropping them is the mapping's job.
+	 * Every row of {@code eco2mix-national-tr} with {@code date_heure} strictly between {@code after} and
+	 * {@code before}, oldest first, all pages included. The upper bound keeps the forecast tail (future rows) out of
+	 * the response, so a regular poll fits in one call; the few forecast rows before it are dropped by the mapping.
 	 *
+	 * @param before must be whole seconds: it goes into an ODSQL date literal
 	 * @throws OdreException if a page cannot be read; rows of the previous pages are not returned
 	 */
-	List<NationalRealtimeRecord> nationalRealtimeAfter(Instant after) {
+	List<NationalRealtimeRecord> nationalRealtimeBetween(Instant after, Instant before) {
 		Objects.requireNonNull(after, "after");
+		Objects.requireNonNull(before, "before");
 		List<NationalRealtimeRecord> rows = new ArrayList<>();
+		// Nothing can match: no call, the quota is spared
+		if (!before.isAfter(after)) {
+			return rows;
+		}
 		Instant cursor = after;
 		int pages = 0;
 		while (true) {
-			RecordsPage<NationalRealtimeRecord> page = nationalRealtimePage(cursor);
+			RecordsPage<NationalRealtimeRecord> page = nationalRealtimePage(cursor, before);
 			pages++;
 			rows.addAll(page.results());
 			if (page.results().size() < pageSize || page.results().size() >= page.totalCount()) {
-				log.debug("ODRÉ {}: {} rows after {} in {} page(s)", NATIONAL_REALTIME, rows.size(), after, pages);
+				log.debug("ODRÉ {}: {} rows between {} and {} in {} page(s)", NATIONAL_REALTIME, rows.size(), after,
+						before, pages);
 				return rows;
 			}
 			Instant last = page.results().getLast().dateHeure();
@@ -92,8 +100,8 @@ class OdreClient {
 		}
 	}
 
-	private RecordsPage<NationalRealtimeRecord> nationalRealtimePage(Instant after) {
-		String body = fetch(NATIONAL_REALTIME, after);
+	private RecordsPage<NationalRealtimeRecord> nationalRealtimePage(Instant after, Instant before) {
+		String body = fetch(NATIONAL_REALTIME, after, before);
 		try {
 			return responses.nationalRealtime(body);
 		}
@@ -103,10 +111,11 @@ class OdreClient {
 	}
 
 	/** One request. Only the dataset, the cursor and the status are logged: never the body. */
-	private String fetch(String dataset, Instant after) {
+	private String fetch(String dataset, Instant after, Instant before) {
+		String where = "date_heure > date'" + after + "' and date_heure < date'" + before + "'";
 		try {
 			return rest.get()
-					.uri(RECORDS, dataset, "date_heure > date'" + after + "'", pageSize)
+					.uri(RECORDS, dataset, where, pageSize)
 					.exchange((request, response) -> {
 						HttpStatusCode status = response.getStatusCode();
 						if (status.value() == TOO_MANY_REQUESTS) {

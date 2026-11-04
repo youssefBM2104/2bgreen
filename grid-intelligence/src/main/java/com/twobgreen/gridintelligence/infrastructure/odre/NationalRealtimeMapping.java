@@ -21,8 +21,6 @@ import com.twobgreen.gridintelligence.domain.Quality;
  */
 final class NationalRealtimeMapping {
 
-	static final String SCOPE = "national";
-
 	private static final Logger log = LoggerFactory.getLogger(NationalRealtimeMapping.class);
 
 	private NationalRealtimeMapping() {
@@ -49,7 +47,7 @@ final class NationalRealtimeMapping {
 				wholeNumber("hydraulique", row.hydraulique()),
 				wholeNumber("bioenergies", row.bioenergies()));
 		return Optional.of(new GridSnapshot(
-				SCOPE,
+				GridSnapshot.NATIONAL_SCOPE,
 				row.dateHeure(),
 				decimal("taux_co2", row.tauxCo2()),
 				consumption,
