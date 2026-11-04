@@ -1,0 +1,79 @@
+{
+  "scope": "national",
+  "from": "2025-12-31T00:00:00Z",
+  "to": "2026-10-21T00:00:00Z",
+  "items": [
+    {
+      "schemaVersion": 1,
+      "scope": "national",
+      "observedAt": "2025-12-31T22:30:00Z",
+      "co2Intensity": 41,
+      "consumption": 58200,
+      "consumptionForecastDay": 58000,
+      "consumptionForecastDayBefore": 57600,
+      "production": {
+        "nuclear": 43100,
+        "gas": 2400,
+        "coal": 0,
+        "oil": 60,
+        "thermal": null,
+        "wind": 9800,
+        "solar": 0,
+        "hydro": 5200,
+        "bioenergy": 900
+      },
+      "pumping": -1500,
+      "quality": "DEFINITIVE",
+      "estimated": false,
+      "storedAt": "2026-03-04T02:10:00Z"
+    },
+    {
+      "schemaVersion": 1,
+      "scope": "national",
+      "observedAt": "2026-08-31T21:30:00Z",
+      "co2Intensity": 24,
+      "consumption": 33100,
+      "consumptionForecastDay": 33300,
+      "consumptionForecastDayBefore": 33000,
+      "production": {
+        "nuclear": 29800,
+        "gas": 900,
+        "coal": 0,
+        "oil": 30,
+        "thermal": null,
+        "wind": 2100,
+        "solar": 0,
+        "hydro": 3600,
+        "bioenergy": 880
+      },
+      "pumping": -600,
+      "quality": "CONSOLIDATED",
+      "estimated": false,
+      "storedAt": "2026-10-05T02:10:00Z"
+    },
+    {
+      "schemaVersion": 1,
+      "scope": "national",
+      "observedAt": "2026-10-20T14:45:00Z",
+      "co2Intensity": 29,
+      "consumption": 49970,
+      "consumptionForecastDay": 49950,
+      "consumptionForecastDayBefore": 49650,
+      "production": {
+        "nuclear": 38499,
+        "gas": 2632,
+        "coal": 0,
+        "oil": 37,
+        "thermal": null,
+        "wind": 6225,
+        "solar": 4656,
+        "hydro": 3768,
+        "bioenergy": 941
+      },
+      "pumping": 0,
+      "quality": "PROVISIONAL",
+      "estimated": false,
+      "storedAt": "2026-10-20T15:03:12Z"
+    }
+  ]
+}
