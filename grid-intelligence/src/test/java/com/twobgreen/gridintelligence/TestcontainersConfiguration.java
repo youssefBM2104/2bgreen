@@ -25,9 +25,13 @@ class TestcontainersConfiguration {
 
 	private static final String GRID_APP_PASSWORD = "grid_dev";
 
-	// Same setup as docker-compose.yml: the real init script creates the roles, schemas and extension
 	@Bean
 	PostgreSQLContainer postgres() {
+		return newPostgres();
+	}
+
+	// Same setup as docker-compose.yml: the real init script creates the roles, schemas and extension
+	static PostgreSQLContainer newPostgres() {
 		return new PostgreSQLContainer(TIMESCALEDB)
 				.withDatabaseName("2bgreen")
 				.withUsername("postgres")
