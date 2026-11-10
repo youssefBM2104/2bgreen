@@ -94,13 +94,34 @@ Right of access (*optional, not in any issue*): a `GET /api/v1/me/data` that gat
 
 Legal basis (*proposal*): the data is processed to provide the service the user asked for (contract), not for tracking. Nothing is used for analytics or shared with a third party except the webhook calls the user configured themselves.
 
-## What P7 should take from this
+## How P7 implements it
 
-- One table per row of the summary, grouped by module: `advisory` (3, 4, 5), `automation` (1, 6, 7, 8, 12), `regional` (10, 11), `delivery` (2, 9).
-- Every table has a `user_id` column of the same type (the Keycloak `sub`) and no foreign key to another module's table. Cross-module links (a rule state pointing at a target, a notification at a rule, a delivery row at a webhook) are plain ids, so deletions between modules go through events (see "Deleting data").
-- Rows 2 and 9 are two logs for two channels (in-app, HTTP). P7 may unify them in one `delivery` table with a channel column, or keep two.
-- Retention needs a scheduled purge in `platform`: notifications and delivery log 90 days, usage log 24 months, counters 13 months, revoked keys 30 days.
-- Constraints stated in the issues belong in the schema or the services: 5 rules per user (U2), 10 webhooks (U9), 5 active keys (U10).
+The schema is built by the Flyway migrations of `platform` (`platform/src/main/resources/db/migration`, one file per module). A table is prefixed with the name of its owner module. `UserDataSchemaTests` fails if a table is not listed here, or if this list names a table that does not exist.
+
+| # | Table | Entity (in `<module>.domain`) |
+|---|---|---|
+| 1 | `automation_alert_rule` | `AlertRule` |
+| 2 | `delivery_notification` | `Notification` |
+| 3 | `advisory_usage` | `Usage` |
+| 4 | `advisory_usage_log_entry` | `UsageLogEntry` |
+| 5 | `advisory_region_preference` | `RegionPreference` |
+| 6 | `automation_api_key` | `ApiKey` |
+| 7 | `automation_api_key_daily_counter` | none: one atomic statement of `ApiKeyRepository` |
+| 8 | `automation_webhook` | `Webhook` |
+| 9 | `delivery_webhook_delivery` | `WebhookDelivery` |
+| 10 | `regional_target` | `Target` |
+| 11 | `regional_target_progress` | `TargetProgress` |
+| 12 | `automation_rule_state` | `RuleState` |
+
+- **No foreign key between modules.** Cross-module links (a rule state pointing at a target, a notification at a rule, a delivery row at a webhook) are plain ids, so deletions between modules go through events (see "Deleting data"). The only two foreign keys stay inside a module: a counter follows its key, a progress row follows its target, both with `ON DELETE CASCADE`.
+- **Every row is reachable from a user id.** Ten tables have a `user_id` column (the Keycloak `sub`, as text). Rows 7 and 11 do not: they are deleted with their parent row, which has it. Each repository has a `deleteAllOfUser` for the account deletion.
+- **Choices made by P7 on points the inventory left open:**
+  - Rows 2 and 9 stay two tables, one per channel: their columns have almost nothing in common.
+  - The read flag of a notification is a timestamp, `read_at`, empty while unread.
+  - The optional deadline of a usage (U4) is a time of day in Paris time, `finish_before`: a stored usage recurs, so it cannot be a date. *To confirm with U4.*
+  - A usage log entry copies the label of its usage instead of pointing at it, so deleting a usage keeps the log.
+  - The values of `state` in row 12 are left to P8.
+- **Not in the schema:** the limits per user (5 rules in U2, 10 webhooks in U9, 5 active keys in U10) are for the services, and the retention purges have their queries in the repositories but no scheduled job yet.
 
 ## Open questions for the review
 
