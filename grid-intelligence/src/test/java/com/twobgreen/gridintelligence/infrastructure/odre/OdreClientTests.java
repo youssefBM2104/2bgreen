@@ -207,6 +207,65 @@ class OdreClientTests {
 				.message().doesNotContain("secret-looking body");
 	}
 
+	@Test
+	void decodesARegionalPageIntoRecords() {
+		odre.reply(200, fixture("regional-tr-measured.json"));
+
+		List<RegionalRealtimeRecord> rows = client(100).regionalRealtimeBetween(AFTER, BEFORE);
+
+		assertThat(rows).containsExactly(new RegionalRealtimeRecord(
+				Instant.parse("2026-10-20T14:45:00Z"), "32",
+				"5539", "1173", "3562", "1374", "50", "3", "79", "0"));
+	}
+
+	@Test
+	void regionalFullPageKeepsOnlyWholePeriodsAndTheNextPageRestartsBeforeTheCutPeriod() {
+		// 3 regions, pages of 5 rows: page 1 ends in the middle of the 15:00 period
+		odre.reply(200, regionalPage(8, "14:45:00/32,76,84", "15:00:00/32,76"))
+				.reply(200, regionalPage(3, "15:00:00/32,76,84"));
+
+		List<RegionalRealtimeRecord> rows = client(5).regionalRealtimeBetween(AFTER, BEFORE);
+
+		assertThat(rows).extracting(row -> row.dateHeure().toString() + "/" + row.codeInseeRegion())
+				.containsExactly(
+						"2026-10-20T14:45:00Z/32", "2026-10-20T14:45:00Z/76", "2026-10-20T14:45:00Z/84",
+						"2026-10-20T15:00:00Z/32", "2026-10-20T15:00:00Z/76", "2026-10-20T15:00:00Z/84");
+		// The second request starts at 14:45, so the whole 15:00 period is asked again: nothing is lost, nothing doubled
+		assertThat(odre.requests()).extracting(request -> request.getQuery()).containsExactly(
+				query("2026-10-20T14:30:00Z", 5),
+				query("2026-10-20T14:45:00Z", 5));
+	}
+
+	@Test
+	void regionalPageSmallerThanOnePeriodIsRejectedInsteadOfLoopingForever() {
+		odre.reply(200, regionalPage(50, "14:45:00/32,76,84"));
+
+		assertReason(() -> client(3).regionalRealtimeBetween(AFTER, BEFORE), Reason.INVALID_RESPONSE);
+		assertThat(odre.requests()).hasSize(1);
+	}
+
+	@Test
+	void regionalEmptyRangeMakesNoCall() {
+		assertThat(client(100).regionalRealtimeBetween(BEFORE, BEFORE)).isEmpty();
+		assertThat(odre.requests()).isEmpty();
+	}
+
+	/** A page: {@code "HH:mm:ss/code,code"} groups, one row per code, all on 2026-10-20. */
+	private static String regionalPage(int totalCount, String... periods) {
+		StringBuilder rows = new StringBuilder();
+		for (String period : periods) {
+			String[] parts = period.split("/");
+			for (String code : parts[1].split(",")) {
+				if (!rows.isEmpty()) {
+					rows.append(',');
+				}
+				rows.append("{\"date_heure\": \"2026-10-20T").append(parts[0]).append("+00:00\", ")
+						.append("\"code_insee_region\": \"").append(code).append("\", \"consommation\": 1000}");
+			}
+		}
+		return "{\"total_count\": " + totalCount + ", \"results\": [" + rows + "]}";
+	}
+
 	/** The decoded query string the client must send, with {@link #BEFORE} as upper bound. */
 	private static String query(String after, int limit) {
 		return "where=date_heure > date'" + after + "' and date_heure < date'" + BEFORE + "'"

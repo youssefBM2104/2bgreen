@@ -63,5 +63,10 @@ class NationalPollerTests {
 		public Optional<Instant> latestObservedAt(String scope) {
 			return Optional.empty();
 		}
+
+		@Override
+		public Optional<Instant> latestRegionalObservedAt() {
+			return Optional.empty();
+		}
 	}
 }

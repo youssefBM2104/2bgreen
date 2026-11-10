@@ -108,7 +108,9 @@ cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=poller
 ```
 
 On an empty database the first poll backfills everything `eco2mix-national-tr` holds (since 2026-09-01, about
-50 ODRÉ calls, once). Settings: `src/main/resources/application-poller.properties`. Kafka clients log their whole
+50 ODRÉ calls, once). The regional dataset (`eco2mix-regional-tr`, 12 regions) is polled hourly by the same
+profile and backfilled the same way (about 600 calls, once); its snapshots go on the same topic with the key
+`region:<INSEE code>`. Settings: `src/main/resources/application-poller.properties`. Kafka clients log their whole
 configuration at startup; to keep only the app's own lines, add
 `-Dspring-boot.run.arguments="--logging.level.org.apache.kafka=WARN"`. How to check the result: see
 "Checking the speed layer" below.
@@ -202,6 +204,10 @@ gsql "SELECT count(*) FROM grid.speed_snapshot WHERE consumption IS NULL"
 # Gaps in the 15-min series. Expected: only 2026-10-25 01:00 (missing at the source, see docs/data/eco2mix-national-tr.md)
 gsql "SELECT observed_at, gap FROM (SELECT observed_at, observed_at - lag(observed_at) OVER (ORDER BY observed_at) AS gap
       FROM grid.speed_snapshot WHERE scope='national') g WHERE gap <> interval '15 minutes'"
+
+# Regional readings (12 regions, hourly poll). Expect 12 scopes, no CO2, estimated = false
+gsql "SELECT scope, count(*), max(observed_at), count(co2_intensity) AS with_co2 FROM grid.speed_snapshot
+      WHERE scope LIKE 'region:%' GROUP BY scope ORDER BY scope"
 
 # Messages: key = scope, K1 JSON; the stored topic adds storedAt
 K=/opt/kafka/bin

@@ -53,6 +53,11 @@ class JdbcSpeedSnapshotRepository implements SpeedSnapshotRepository {
 			SELECT observed_at FROM speed_snapshot WHERE scope = :scope ORDER BY observed_at DESC LIMIT 1
 			""";
 
+	// Same, over every regional scope ("region:" is a literal prefix, nothing to escape)
+	private static final String LATEST_REGIONAL = """
+			SELECT observed_at FROM speed_snapshot WHERE scope LIKE 'region:%' ORDER BY observed_at DESC LIMIT 1
+			""";
+
 	private final JdbcClient jdbc;
 
 	JdbcSpeedSnapshotRepository(JdbcClient jdbc) {
@@ -89,6 +94,14 @@ class JdbcSpeedSnapshotRepository implements SpeedSnapshotRepository {
 	public Optional<Instant> latestObservedAt(String scope) {
 		return jdbc.sql(LATEST)
 				.param("scope", scope)
+				.query(Timestamp.class)
+				.optional()
+				.map(Timestamp::toInstant);
+	}
+
+	@Override
+	public Optional<Instant> latestRegionalObservedAt() {
+		return jdbc.sql(LATEST_REGIONAL)
 				.query(Timestamp.class)
 				.optional()
 				.map(Timestamp::toInstant);

@@ -26,6 +26,10 @@ class OdreResponses {
 		return page(body, OdreResponses::nationalRealtimeRow);
 	}
 
+	RecordsPage<RegionalRealtimeRecord> regionalRealtime(String body) {
+		return page(body, OdreResponses::regionalRealtimeRow);
+	}
+
 	private <T> RecordsPage<T> page(String body, Function<JsonNode, T> row) {
 		if (body == null || body.isBlank()) {
 			throw invalid("empty body");
@@ -66,6 +70,20 @@ class OdreResponses {
 				raw(row, "gaz"),
 				raw(row, "charbon"),
 				raw(row, "fioul"),
+				raw(row, "eolien"),
+				raw(row, "solaire"),
+				raw(row, "hydraulique"),
+				raw(row, "bioenergies"),
+				raw(row, "pompage"));
+	}
+
+	private static RegionalRealtimeRecord regionalRealtimeRow(JsonNode row) {
+		return new RegionalRealtimeRecord(
+				dateHeure(row),
+				raw(row, "code_insee_region"),
+				raw(row, "consommation"),
+				raw(row, "thermique"),
+				raw(row, "nucleaire"),
 				raw(row, "eolien"),
 				raw(row, "solaire"),
 				raw(row, "hydraulique"),

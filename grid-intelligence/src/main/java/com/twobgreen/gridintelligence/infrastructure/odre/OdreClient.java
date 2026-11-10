@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,11 +28,13 @@ import com.twobgreen.gridintelligence.application.OdreException.Reason;
  * Paging is by cursor, not by offset: each request asks for the rows strictly after the last {@code date_heure}
  * received, ordered by {@code date_heure}. That avoids ODRÉ's cap on {@code offset} and stays correct if rows are
  * added between two pages. It relies on {@code date_heure} being unique per row, true for national datasets
- * (one row per period); regional ones have one row per region and period and will need another cursor.
+ * (one row per period). Regional datasets have one row per region and period: see {@link #regionalRealtimeBetween}.
  */
 class OdreClient {
 
 	static final String NATIONAL_REALTIME = "eco2mix-national-tr";
+
+	static final String REGIONAL_REALTIME = "eco2mix-regional-tr";
 
 	private static final Logger log = LoggerFactory.getLogger(OdreClient.class);
 
@@ -72,9 +75,33 @@ class OdreClient {
 	 * @throws OdreException if a page cannot be read; rows of the previous pages are not returned
 	 */
 	List<NationalRealtimeRecord> nationalRealtimeBetween(Instant after, Instant before) {
+		return between(NATIONAL_REALTIME, after, before, responses::nationalRealtime,
+				NationalRealtimeRecord::dateHeure, false);
+	}
+
+	/**
+	 * Same for {@code eco2mix-regional-tr}, every region together (one row per region and period, so the same
+	 * {@code date_heure} comes up to 12 times). {@code date_heure} alone cannot say where a page stops inside such a
+	 * group, so a full page drops its last, possibly incomplete, timestamp and the next page starts just before it:
+	 * a period is never split between two pages. The page size must therefore hold at least one whole period.
+	 *
+	 * @param before must be whole seconds, see {@link #nationalRealtimeBetween}
+	 * @throws OdreException if a page cannot be read, or if one page is smaller than one period
+	 */
+	List<RegionalRealtimeRecord> regionalRealtimeBetween(Instant after, Instant before) {
+		return between(REGIONAL_REALTIME, after, before, responses::regionalRealtime,
+				RegionalRealtimeRecord::dateHeure, true);
+	}
+
+	/**
+	 * Paging is by cursor on {@code date_heure}. With {@code manyRowsPerDate} a full page keeps only the periods it
+	 * holds completely.
+	 */
+	private <T> List<T> between(String dataset, Instant after, Instant before,
+			Function<String, RecordsPage<T>> decode, Function<T, Instant> dateOf, boolean manyRowsPerDate) {
 		Objects.requireNonNull(after, "after");
 		Objects.requireNonNull(before, "before");
-		List<NationalRealtimeRecord> rows = new ArrayList<>();
+		List<T> rows = new ArrayList<>();
 		// Nothing can match: no call, the quota is spared
 		if (!before.isAfter(after)) {
 			return rows;
@@ -82,31 +109,42 @@ class OdreClient {
 		Instant cursor = after;
 		int pages = 0;
 		while (true) {
-			RecordsPage<NationalRealtimeRecord> page = nationalRealtimePage(cursor, before);
+			RecordsPage<T> page = page(dataset, cursor, before, decode);
 			pages++;
-			rows.addAll(page.results());
-			if (page.results().size() < pageSize || page.results().size() >= page.totalCount()) {
-				log.debug("ODRÉ {}: {} rows between {} and {} in {} page(s)", NATIONAL_REALTIME, rows.size(), after,
-						before, pages);
+			List<T> results = page.results();
+			if (results.size() < pageSize || results.size() >= page.totalCount()) {
+				rows.addAll(results);
+				log.debug("ODRÉ {}: {} rows between {} and {} in {} page(s)", dataset, rows.size(), after, before,
+						pages);
 				return rows;
 			}
-			Instant last = page.results().getLast().dateHeure();
+			if (manyRowsPerDate) {
+				Instant lastDate = dateOf.apply(results.getLast());
+				results = results.stream().filter(row -> dateOf.apply(row).isBefore(lastDate)).toList();
+				if (results.isEmpty()) {
+					throw failure(dataset, cursor, new OdreException(Reason.INVALID_RESPONSE,
+							"a page of " + pageSize + " rows holds less than one period"));
+				}
+			}
+			rows.addAll(results);
+			Instant last = dateOf.apply(results.getLast());
 			// A server ignoring the filter or the order would make the loop endless
 			if (!last.isAfter(cursor)) {
-				throw failure(NATIONAL_REALTIME, cursor,
+				throw failure(dataset, cursor,
 						new OdreException(Reason.INVALID_RESPONSE, "page does not move past " + cursor));
 			}
 			cursor = last;
 		}
 	}
 
-	private RecordsPage<NationalRealtimeRecord> nationalRealtimePage(Instant after, Instant before) {
-		String body = fetch(NATIONAL_REALTIME, after, before);
+	private <T> RecordsPage<T> page(String dataset, Instant after, Instant before,
+			Function<String, RecordsPage<T>> decode) {
+		String body = fetch(dataset, after, before);
 		try {
-			return responses.nationalRealtime(body);
+			return decode.apply(body);
 		}
 		catch (OdreException e) {
-			throw failure(NATIONAL_REALTIME, after, e);
+			throw failure(dataset, after, e);
 		}
 	}
 

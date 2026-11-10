@@ -57,6 +57,14 @@ One row per `(region, date_heure)` pair — this dataset multiplexes all regions
 Committed under `grid-intelligence/src/test/resources/odre/`:
 - `regional-tr-measured.json` (Hauts-de-France, 2026-10-20, non-null — captured live)
 - `regional-tr-pending.json` (Occitanie, 2026-10-20 23:45, all-null — the "not yet measured" tail at the end of today, confirming there's no multi-day forecast tail here unlike national-tr)
+- `regional-tr-missing-values-synthetic.json` (hand-written, not captured: `""`, `"ND"`, `"-"`, text and a non-number in the measure fields, to test the defensive parsing)
+
+## How the ingestion reads this dataset (G1)
+
+- **ACL:** `RegionalRealtimeMapping`. `code_insee_region` gives the scope `region:<code>`; `thermique` goes to `production.thermal` (gas, coal and oil stay missing); `co2Intensity`, forecasts stay missing and `estimated` stays `false` (no CO2 is invented, regional CO2 is G7). A row without measured consumption (pending) or without region code is dropped.
+- **Query:** one request for all regions (`date_heure > after and date_heure < now`, ordered by `date_heure`), no region filter: the cost does not depend on the number of regions. Paging is by `date_heure` cursor; since a period has one row per region, a full page drops its last (possibly incomplete) period and the next page restarts just before it.
+- **Rhythm:** hourly (`poller.regional-interval`), because the dataset is said to be refreshed hourly (data.gouv description, **not yet checked on the live API**: if it refreshes every 15 min, lower the interval). Overlap of 3 h (`poller.regional-overlap`) because regions are not filled in at the same pace.
+- **Quota:** about 2,160 calls/month (+ 2,880 for the national poll) = about 10 % of 50,000; one-time backfill of about 600 calls (50 days x 96 periods x 12 regions = 57,600 rows, 100 rows per page, 8 whole periods per full page).
 
 ## Open items for later (need a live curl)
 

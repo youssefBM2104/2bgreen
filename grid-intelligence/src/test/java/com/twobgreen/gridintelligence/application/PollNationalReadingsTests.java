@@ -201,5 +201,10 @@ class PollNationalReadingsTests {
 			}
 			return Optional.ofNullable(latest);
 		}
+
+		@Override
+		public Optional<Instant> latestRegionalObservedAt() {
+			throw new UnsupportedOperationException("the national poller never reads regions");
+		}
 	}
 }

@@ -95,6 +95,25 @@ class SpeedSnapshotRepositoryTests {
 		assertThat(repository.latestObservedAt("national")).contains(OBSERVED_AT);
 	}
 
+	@Test
+	void latestRegionalObservedAtIsEmptyWithoutRegionalReadings() {
+		repository.upsert(measured(29));
+
+		assertThat(repository.latestRegionalObservedAt()).isEmpty();
+	}
+
+	@Test
+	void latestRegionalObservedAtIsTheNewestReadingOfAnyRegionAndNeverTheNationalOne() {
+		repository.upsert(new GridSnapshot("national", OBSERVED_AT.plusSeconds(3600), null, 49000, null, null, null,
+				null, Quality.PROVISIONAL, false));
+		repository.upsert(new GridSnapshot("region:76", OBSERVED_AT, null, 3805, null, null, null, null,
+				Quality.PROVISIONAL, false));
+		repository.upsert(new GridSnapshot("region:32", OBSERVED_AT.plusSeconds(900), null, 5539, null, null, null,
+				null, Quality.PROVISIONAL, false));
+
+		assertThat(repository.latestRegionalObservedAt()).contains(OBSERVED_AT.plusSeconds(900));
+	}
+
 	private int count() {
 		return jdbc.queryForObject("SELECT count(*) FROM speed_snapshot", Integer.class);
 	}

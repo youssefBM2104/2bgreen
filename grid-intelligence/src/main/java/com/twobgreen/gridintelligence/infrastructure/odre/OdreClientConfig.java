@@ -7,9 +7,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.twobgreen.gridintelligence.application.OdreGateway;
+import com.twobgreen.gridintelligence.application.RegionalOdreGateway;
 
 /**
- * Creates the ODRÉ client from the {@code odre.*} settings, and the {@link OdreGateway} the rest of the app uses.
+ * Creates the ODRÉ client from the {@code odre.*} settings, and the gateways ({@link OdreGateway}, {@link RegionalOdreGateway}) the rest of the app uses.
  * Building them opens no connection, so they are active on every profile.
  */
 @Configuration(proxyBeanMethods = false)
@@ -24,5 +25,10 @@ class OdreClientConfig {
 	@Bean
 	OdreGateway odreGateway(OdreClient client) {
 		return new NationalRealtimeGateway(client, Clock.systemUTC());
+	}
+
+	@Bean
+	RegionalOdreGateway regionalOdreGateway(OdreClient client) {
+		return new RegionalRealtimeGateway(client, Clock.systemUTC());
 	}
 }
