@@ -115,6 +115,22 @@ configuration at startup; to keep only the app's own lines, add
 `-Dspring-boot.run.arguments="--logging.level.org.apache.kafka=WARN"`. How to check the result: see
 "Checking the speed layer" below.
 
+The batch layer (daily resync of `eco2mix-national-cons-def` into `batch_snapshot`) is its own profile and does not
+need the poller or the stream:
+
+```bash
+cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=batch
+```
+
+On an empty table the first run loads the whole history (2012 to the last published date, about 257,000 rows, about
+17 ODRÉ calls, once). Later runs cost one call and say `nothing changed` unless ODRÉ added rows or moved a year from
+consolidated to definitive. Settings: `src/main/resources/application-batch.properties`. Check the result:
+
+```sql
+SELECT min(observed_at), max(observed_at), count(*) FROM grid.batch_snapshot;
+SELECT year, quality, row_count FROM grid.batch_sync_state ORDER BY year, quality;
+```
+
 ### 3. Frontend
 
 ```bash

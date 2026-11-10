@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.twobgreen.gridintelligence.application.ConsolidatedOdreGateway;
 import com.twobgreen.gridintelligence.application.OdreGateway;
 import com.twobgreen.gridintelligence.application.RegionalOdreGateway;
 
@@ -30,5 +31,10 @@ class OdreClientConfig {
 	@Bean
 	RegionalOdreGateway regionalOdreGateway(OdreClient client) {
 		return new RegionalRealtimeGateway(client, Clock.systemUTC());
+	}
+
+	@Bean
+	ConsolidatedOdreGateway consolidatedOdreGateway(OdreClient client) {
+		return new NationalConsolidatedGateway(client);
 	}
 }
