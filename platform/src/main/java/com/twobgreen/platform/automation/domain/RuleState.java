@@ -12,7 +12,7 @@ import org.springframework.data.relational.core.mapping.Table;
  * @param id null until stored
  * @param userId owner of the subject, copied here so the row can be purged with the account
  * @param subjectId id of the rule, webhook or target: a plain reference, not a foreign key
- * @param state which side of its condition the subject was on at the last evaluation; the values belong to P8
+ * @param state a {@link RuleStatus} name
  * @param lastCrossingAt when the condition last became true, null if never
  * @param lastObservedAt {@code observedAt} of the last snapshot evaluated, null if none
  */
