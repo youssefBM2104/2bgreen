@@ -12,7 +12,7 @@ import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
 
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
 	// Same pinned tag as docker-compose.yml
 	private static final DockerImageName TIMESCALEDB = DockerImageName
