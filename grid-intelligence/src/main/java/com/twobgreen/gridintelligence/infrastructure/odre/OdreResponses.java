@@ -30,6 +30,32 @@ class OdreResponses {
 		return page(body, OdreResponses::regionalRealtimeRow);
 	}
 
+	/** The {@code select=annee,nature,count(*) as n} answer: {@code {"annee": 2026, "nature": "...", "n": 23324}}. */
+	RecordsPage<ConsolidatedCount> nationalConsolidatedCounts(String body) {
+		return page(body, OdreResponses::consolidatedCountRow);
+	}
+
+	/**
+	 * One line of an {@code exports/jsonl} response: a bare JSON object, with no {@code total_count} / {@code results}
+	 * envelope. Strict on the structure, lenient on the measures, like {@link #nationalRealtime}.
+	 */
+	NationalConsolidatedRecord nationalConsolidatedLine(String line) {
+		if (line == null || line.isBlank()) {
+			throw invalid("empty line");
+		}
+		JsonNode node;
+		try {
+			node = mapper.readTree(line);
+		}
+		catch (JacksonException e) {
+			throw new OdreException(Reason.INVALID_RESPONSE, "line is not valid JSON", e);
+		}
+		if (!node.isObject()) {
+			throw invalid("a line of the export is not a JSON object");
+		}
+		return nationalConsolidatedRow(node);
+	}
+
 	private <T> RecordsPage<T> page(String body, Function<JsonNode, T> row) {
 		if (body == null || body.isBlank()) {
 			throw invalid("empty body");
@@ -62,6 +88,36 @@ class OdreResponses {
 	private static NationalRealtimeRecord nationalRealtimeRow(JsonNode row) {
 		return new NationalRealtimeRecord(
 				dateHeure(row),
+				raw(row, "consommation"),
+				raw(row, "taux_co2"),
+				raw(row, "prevision_j"),
+				raw(row, "prevision_j1"),
+				raw(row, "nucleaire"),
+				raw(row, "gaz"),
+				raw(row, "charbon"),
+				raw(row, "fioul"),
+				raw(row, "eolien"),
+				raw(row, "solaire"),
+				raw(row, "hydraulique"),
+				raw(row, "bioenergies"),
+				raw(row, "pompage"));
+	}
+
+	private static ConsolidatedCount consolidatedCountRow(JsonNode row) {
+		JsonNode year = row.path("annee");
+		JsonNode nature = row.path("nature");
+		JsonNode rows = row.path("n");
+		if (!year.isIntegralNumber() || !nature.isString() || !rows.isIntegralNumber()) {
+			throw invalid("a count group lacks annee, nature or n");
+		}
+		return new ConsolidatedCount(year.intValue(), nature.stringValue(), rows.longValue());
+	}
+
+	private static NationalConsolidatedRecord nationalConsolidatedRow(JsonNode row) {
+		return new NationalConsolidatedRecord(
+				dateHeure(row),
+				raw(row, "heure"),
+				raw(row, "nature"),
 				raw(row, "consommation"),
 				raw(row, "taux_co2"),
 				raw(row, "prevision_j"),

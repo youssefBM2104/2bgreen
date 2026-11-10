@@ -1,5 +1,9 @@
 package com.twobgreen.gridintelligence.infrastructure.odre;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -36,10 +40,21 @@ class OdreClient {
 
 	static final String REGIONAL_REALTIME = "eco2mix-regional-tr";
 
+	static final String NATIONAL_CONSOLIDATED = "eco2mix-national-cons-def";
+
 	private static final Logger log = LoggerFactory.getLogger(OdreClient.class);
 
 	private static final String RECORDS = "/catalog/datasets/{dataset}/records"
 			+ "?where={where}&order_by=date_heure&limit={limit}";
+
+	// Whole result as JSON Lines in one call: records is capped at 100 rows a call, and every call costs the same
+	private static final String EXPORT = "/catalog/datasets/{dataset}/exports/jsonl?where={where}";
+
+	private static final String COUNTS = "/catalog/datasets/{dataset}/records"
+			+ "?select={select}&group_by={groupBy}&limit={limit}";
+
+	/** Rows per (year, nature) group fit in one page for a long time: 15 years of history, one new group a year. */
+	private static final int COUNTS_LIMIT = 100;
 
 	private static final int TOO_MANY_REQUESTS = 429;
 
@@ -91,6 +106,65 @@ class OdreClient {
 	List<RegionalRealtimeRecord> regionalRealtimeBetween(Instant after, Instant before) {
 		return between(REGIONAL_REALTIME, after, before, responses::regionalRealtime,
 				RegionalRealtimeRecord::dateHeure, true);
+	}
+
+	/**
+	 * Every measured row of {@code eco2mix-national-cons-def} with {@code date_heure} from {@code from} (included) to
+	 * {@code to} (excluded), in one {@code exports} call. The server drops the rows without consumption (the empty
+	 * {@code :15} and {@code :45} placeholders), which halves the transfer. The order is not guaranteed and no caller
+	 * may rely on it. A year is about 17,500 rows, so the batch asks one UTC year at a time.
+	 *
+	 * @param from must be whole seconds: it goes into an ODSQL date literal
+	 * @param to same
+	 * @throws OdreException if the export cannot be read; a line that is not valid fails the whole call, so a
+	 *         half-read year is never returned
+	 */
+	List<NationalConsolidatedRecord> nationalConsolidatedBetween(Instant from, Instant to) {
+		Objects.requireNonNull(from, "from");
+		Objects.requireNonNull(to, "to");
+		List<NationalConsolidatedRecord> rows = new ArrayList<>();
+		if (!to.isAfter(from)) {
+			return rows;
+		}
+		String where = "date_heure >= \"" + from + "\" and date_heure < \"" + to + "\" and consommation is not null";
+		get(NATIONAL_CONSOLIDATED, from, EXPORT, new Object[] { NATIONAL_CONSOLIDATED, where }, body -> {
+			try (BufferedReader lines = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
+				String line;
+				while ((line = lines.readLine()) != null) {
+					if (!line.isBlank()) {
+						rows.add(responses.nationalConsolidatedLine(line));
+					}
+				}
+			}
+			return rows;
+		});
+		log.debug("ODRÉ {}: {} rows between {} and {} in 1 export call", NATIONAL_CONSOLIDATED, rows.size(), from, to);
+		return rows;
+	}
+
+	/**
+	 * How many rows {@code eco2mix-national-cons-def} holds per UTC year and {@code nature}, in one call. The batch
+	 * compares this with what it saw last time to know which years changed, instead of downloading everything. A
+	 * year changes when rows are added to it, or when they move from consolidated to definitive, since the pair
+	 * (year, nature) then loses and gains rows.
+	 *
+	 * @throws OdreException if the counts cannot be read, or if ODRÉ holds more groups than one page: a truncated
+	 *         answer would hide a change
+	 */
+	List<ConsolidatedCount> nationalConsolidatedCounts() {
+		String body = get(NATIONAL_CONSOLIDATED, Instant.EPOCH, COUNTS, new Object[] { NATIONAL_CONSOLIDATED,
+				"annee,nature,count(*) as n", "year(date_heure) as annee,nature", COUNTS_LIMIT }, this::readText);
+		try {
+			RecordsPage<ConsolidatedCount> page = responses.nationalConsolidatedCounts(body);
+			if (page.totalCount() > page.results().size()) {
+				throw new OdreException(Reason.INVALID_RESPONSE,
+						page.totalCount() + " groups but only " + page.results().size() + " returned");
+			}
+			return page.results();
+		}
+		catch (OdreException e) {
+			throw failure(NATIONAL_CONSOLIDATED, Instant.EPOCH, e);
+		}
 	}
 
 	/**
@@ -148,12 +222,30 @@ class OdreClient {
 		}
 	}
 
-	/** One request. Only the dataset, the cursor and the status are logged: never the body. */
 	private String fetch(String dataset, Instant after, Instant before) {
 		String where = "date_heure > date'" + after + "' and date_heure < date'" + before + "'";
+		return get(dataset, after, RECORDS, new Object[] { dataset, where, pageSize }, this::readText);
+	}
+
+	/** Reads the body of a response that passed the status checks. */
+	@FunctionalInterface
+	private interface BodyReader<T> {
+
+		T read(InputStream body) throws IOException;
+	}
+
+	private String readText(InputStream body) throws IOException {
+		return StreamUtils.copyToString(body, StandardCharsets.UTF_8);
+	}
+
+	/**
+	 * One request. Only the dataset, the cursor and the status are logged: never the body. The status is judged
+	 * before the body is read, so a refused call never reaches a decoder.
+	 */
+	private <T> T get(String dataset, Instant after, String uriTemplate, Object[] variables, BodyReader<T> reader) {
 		try {
 			return rest.get()
-					.uri(RECORDS, dataset, where, pageSize)
+					.uri(uriTemplate, variables)
 					.exchange((request, response) -> {
 						HttpStatusCode status = response.getStatusCode();
 						if (status.value() == TOO_MANY_REQUESTS) {
@@ -165,7 +257,7 @@ class OdreClient {
 						if (!status.is2xxSuccessful()) {
 							throw new OdreException(Reason.REJECTED, "HTTP " + status.value());
 						}
-						return StreamUtils.copyToString(response.getBody(), StandardCharsets.UTF_8);
+						return reader.read(response.getBody());
 					});
 		}
 		catch (OdreException e) {
