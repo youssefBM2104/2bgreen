@@ -17,7 +17,7 @@ Built from the U issues (#33 to #48) and from P7 (#31) and P8 (#32) as they stan
 | # | Data | Persona | Issue | Owner module | Personal | Retention (*proposal*) |
 |---|---|---|---|---|---|---|
 | 1 | Alert rule (clean grid) | Citizen | U2 | `automation` | Yes | Until the user deletes it |
-| 2 | In-app notification | Citizen, DevOps, official | U2, U9, U16 | `delivery` | Yes | 90 days |
+| 2 | In-app notification | Citizen, official | U2, U16 | `delivery` | Yes | 90 days |
 | 3 | Chosen usage | Citizen | U4 | `advisory` | Yes | Until the user deletes it |
 | 4 | Usage log entry | Citizen | U6 | `advisory` | Yes | 24 months, or until the user deletes it |
 | 5 | Chosen region (*if U3 is kept*) | Citizen | U3 | `advisory` | Yes | Until changed or deleted by the user |
@@ -27,7 +27,7 @@ Built from the U issues (#33 to #48) and from P7 (#31) and P8 (#32) as they stan
 | 9 | Webhook delivery log | DevOps | U9 | `delivery` | Yes | 90 days |
 | 10 | Target | Regional official | U13 | `regional` | Author yes, content no | Until the user deletes it |
 | 11 | Target progress history | Regional official | U13 | `regional` | Yes (follows the target) | Same as its target |
-| 12 | Rule state (last crossing) | Citizen, DevOps, official | P8, U16 | `automation` | Yes | Same as its rule, webhook or target |
+| 12 | Rule state (last crossing) | Citizen, DevOps, official | P8, U16 | `automation` | Yes | Same as its rule, webhook or target (deleted on `TargetDeleted`, see "Deleting data") |
 
 The W5 task names "subscriptions and limits". The issues have no separate subscription: a citizen's subscription **is** the alert rule with its threshold (row 1), and a DevOps subscription is a webhook (row 8). No extra table.
 
@@ -38,7 +38,7 @@ Stores nothing: traffic light [F5], today's mix [U1], cleanest hours map [U5] (t
 | Data | Fields (from the issue) | Purpose | Owner | Retention | Personal |
 |---|---|---|---|---|---|
 | **1. Alert rule** (U2) | `user_id`, threshold (gCO2eq/kWh, 1 to 1000), active flag, dates | Notify when national CO2 crosses below the user's limit. Rule is stored, then evaluated on each new snapshot. At most 5 rules per user | `automation` | Until the user deletes it | Yes |
-| **2. Notification** (U2) | `user_id`, timestamp, intensity, threshold crossed, read flag | The in-app channel: header badge and notification box. First channel of `delivery`, reused by U9 and U16 | `delivery` | 90 days, read or not | Yes |
+| **2. Notification** (U2, U16) | `user_id`, type (`clean-grid`, `target-pace`), source id (rule or target, plain reference), short message, created at, read flag. Generic on purpose: U2 notifies an intensity and a threshold, U16 a current value, an expected value and a gap, and both fit in the message | The in-app channel: header badge and notification box. First channel of `delivery`, reused by U16. DevOps does not use it: U9 delivers over HTTP (row 9) | `delivery` | 90 days, read or not | Yes |
 | **3. Chosen usage** (U4) | `user_id`, label, duration (minutes), optional deadline. Defaults proposed: washing machine 2 h, dishwasher 3 h, tumble dryer 1 h 30, EV charge 6 h | Compute the best slot of the next 24 h from the typical profile | `advisory` | Until the user deletes it | Yes: tied to the user id, describes their habits |
 | **4. Usage log entry** (U6) | `user_id`, usage, start (UTC), duration. **The CO2 value is not stored**: it is computed at read time from grid data, so the consolidated value replaces the provisional one when the batch lands | Show at which CO2 level the user consumed, with a weekly summary | `advisory` | 24 months, then deleted. The user can delete entries at any time. Entries in the far future or older than a year are refused | Yes: reveals when someone is at home and what they run |
 | **5. Chosen region** (U3, *proposed*) | `user_id`, region code (`code_insee_region`, one of 12, picked from a list). Unknown code refused (400) | Show the regional picture next to the national one. The traffic light stays national | `advisory` | Until changed. Deleting it erases the row (acceptance criterion of U3) | Yes, because it is linked to the user id. The code alone is not: it names one of 12 regions. **No geolocation, no address, no postal code** |
@@ -49,10 +49,10 @@ Stores nothing: carbon-intensity API [U7] (it only authenticates with the key of
 
 | Data | Fields (from the issue) | Purpose | Owner | Retention | Personal |
 |---|---|---|---|---|---|
-| **6. API key** (U10) | key id, `user_id`, name, prefix (`2bg_ab12…`), **SHA-256 hash of the key** (never the key), created at, revoked at, last used at. At most 5 active keys per user | Authenticate the user's programmatic calls on `/api/v1/public/**` | `automation` | Until revoked. A revoked row is kept 30 days so the key keeps answering 401, then deleted | Yes. The full key is shown once at creation and appears nowhere in the database or the logs |
+| **6. API key** (U10) | key id, `user_id`, name, prefix (`2bg_ab12…`), **SHA-256 hash of the key** (never the key), created at, revoked at, last used at. At most 5 active keys per user | Authenticate the user's programmatic calls on `/api/v1/public/**` | `automation` | Until revoked. A revoked row is kept 30 days for audit (who revoked which key and when), then deleted. An unknown key answers 401 anyway, so this is not needed for the check | Yes. The full key is shown once at creation and appears nowhere in the database or the logs |
 | **7. API key daily counter** (U10) | key id, UTC day, call count | Enforce the daily quota (429 with `Retry-After` above it) and show "calls today / quota". The quota (1,000 a day) is a property, not a column | `automation` | 13 months of daily rows (about 400 rows per key, small enough not to aggregate) | Yes, it follows a key owned by a user. Counts only: no URL, no IP, no payload |
-| **8. Webhook** (U9) | webhook id, `user_id`, target URL, condition (below or above a threshold, or colour change), scope, **signing secret**, active flag, consecutive failure count. At most 10 per user | Call the user's URL when the condition becomes true. Disabled after 10 consecutive failures | `automation` | Until the user deletes it | Yes. The URL may carry a token or name a company: treat it like a credential and never log it in clear. The secret must be **recoverable** (HMAC-SHA256 signing needs it), so it cannot be hashed like an API key: shown once at creation, never returned afterwards |
-| **9. Webhook delivery log** (U9) | delivery id (sent as `X-2bGreen-Delivery`, so the receiver can deduplicate), webhook id, attempt number, timestamp (UTC), outcome, HTTP status or error kind | One row per attempt: prove a call was made once per crossing and let the user debug a failing URL | `delivery` | 90 days | Yes. **Never store the sent payload or the response body**, only the status |
+| **8. Webhook** (U9) | webhook id, `user_id`, target URL, condition (below or above a threshold, or colour change), scope, **signing secret**, active flag, consecutive failure count. At most 10 per user | Call the user's URL when the condition becomes true. Disabled after 10 consecutive failures | `automation` | Until the user deletes it | Yes. The URL may carry a token or name a company: treat it like a credential and never log it in clear. The secret must be **recoverable** (HMAC-SHA256 signing needs it), so it cannot be hashed like an API key: shown once at creation, never returned afterwards. **Risk to list in W4:** a database leak would let someone forge signed webhook calls to the user's URL |
+| **9. Webhook delivery log** (U9) | delivery id (sent as `X-2bGreen-Delivery`, so the receiver can deduplicate), **`user_id`** (copied from the webhook, so the log stays reachable for a purge after the webhook is deleted), webhook id (plain reference, may point to a deleted webhook), attempt number, timestamp (UTC), outcome, HTTP status or error kind | One row per attempt: prove a call was made once per crossing and let the user debug a failing URL | `delivery` | 90 days | Yes. **Never store the sent payload or the response body**, only the status |
 
 ## 3. Regional official (`regional_official`)
 
@@ -62,7 +62,7 @@ Stores nothing: regional dashboard [U11], trends [U12], comparison [U14], estima
 
 | Data | Fields (from the issue) | Purpose | Owner | Retention | Personal |
 |---|---|---|---|---|---|
-| **10. Target** (U13) | target id, `user_id` (author), `region_code` (must equal the token's), indicator (renewable share, coverage rate, consumption drop, estimated CO2), reference year, reference value (computed at creation), target value, deadline, tolerance (in points, used by U16) | Set a target and follow progress against it | `regional` | Until the user deletes it | The author reference is personal. The content (a number for a region) is not |
+| **10. Target** (U13) | target id, `user_id` (author), `region_code` (must equal the token's), indicator (renewable share, coverage rate, consumption drop, estimated CO2), reference year, reference value (computed at creation), target value, deadline, tolerance (in points, used by U16, **optional: no tolerance means the pace alert is off**) | Set a target and follow progress against it | `regional` | Until the user deletes it | The author reference is personal. The content (a number for a region) is not |
 | **11. Target progress history** (U13) | target id, date, value, status (ahead, on track, late). One row per day, added after the regional resync | Draw the progress chart over time | `regional` | Same as its target (deleted with it) | Yes, it follows the target |
 
 ## 4. Shared by several personas
@@ -82,24 +82,34 @@ Row 2 (notifications) sits in `delivery` because that module sends them. `delive
 - **Anything about a user in `grid-intelligence`** and in the Kafka topics: grid data is public and the events carry no user id.
 - **E-mail as a notification channel**: U2 asks whether to add it. If yes, an address would have to be read from Keycloak or stored here, and this inventory changes. Today the proposal is the in-app channel only.
 
-## Deleting an account
+## Deleting data
 
-When a user is deleted in Keycloak, every row with their `user_id` must go: rows 1 to 12. This is a requirement for P7: each table with a user id must be reachable for a purge. The mechanism is not designed: an in-process `UserDeleted` event handled by each module for its own tables, or a manual purge. Several issues already ask that the user can delete their own data (U3, U6); row-level deletion by the user exists, deleting the whole account does not yet.
+Two kinds of deletion, and in both cases `platform` is the one that must trigger it, because no module hears about what happens in another one (no foreign key between modules).
+
+- **A target is deleted** (by its author, or with the account). `regional` publishes an in-process `TargetDeleted` event. `automation` handles it and deletes the rule state of row 12 that follows the target. Row 11 (progress history) is in `regional` and goes with the target directly.
+- **An account is deleted.** Keycloak does not tell `platform` that a user is gone, so the trigger has to be in `platform`. Realistic option: a "delete my account" endpoint in `platform` (`DELETE /api/v1/me`) that publishes an in-process `UserDeleted` event, then deletes the user through the Keycloak admin API. Each module handles `UserDeleted` for its own tables: rows 1 to 12 all carry a `user_id` (row 9 included, for this reason). It is the same mechanism as `TargetDeleted`. Deleting an account directly in the Keycloak console would leave the rows behind: acceptable for the project, to note in the risk matrix.
+- Row-level deletion by the user already exists in the issues (U3, U6, and the lists of rules, webhooks, keys, targets).
+
+Right of access (*optional, not in any issue*): a `GET /api/v1/me/data` that gathers the user's rows from every module would answer access and portability. It needs the same per-module contract as `UserDeleted`.
+
+Legal basis (*proposal*): the data is processed to provide the service the user asked for (contract), not for tracking. Nothing is used for analytics or shared with a third party except the webhook calls the user configured themselves.
 
 ## What P7 should take from this
 
 - One table per row of the summary, grouped by module: `advisory` (3, 4, 5), `automation` (1, 6, 7, 8, 12), `regional` (10, 11), `delivery` (2, 9).
-- Every table has a `user_id` column of the same type (the Keycloak `sub`) and no foreign key to another module's table. Cross-module links (a rule state pointing at a target, a notification at a rule) are plain ids.
+- Every table has a `user_id` column of the same type (the Keycloak `sub`) and no foreign key to another module's table. Cross-module links (a rule state pointing at a target, a notification at a rule, a delivery row at a webhook) are plain ids, so deletions between modules go through events (see "Deleting data").
 - Rows 2 and 9 are two logs for two channels (in-app, HTTP). P7 may unify them in one `delivery` table with a channel column, or keep two.
 - Retention needs a scheduled purge in `platform`: notifications and delivery log 90 days, usage log 24 months, counters 13 months, revoked keys 30 days.
 - Constraints stated in the issues belong in the schema or the services: 5 rules per user (U2), 10 webhooks (U9), 5 active keys (U10).
 
 ## Open questions for the review
 
-1. Retention values (24 months, 90 days, 30 days, 13 months): acceptable, or too long or short? None is set by the issues.
-2. Is "my region" [U3] kept? If not, row 5 disappears.
-3. A target whose author leaves: deleted, or kept for the region?
-4. Pace alert (U16): is it on for every target, or does the official opt in? U16 adds a tolerance to the target form and no separate rule, so today it looks always on. If opt-in, a flag goes on row 10.
-5. Account deletion: event per module, or manual purge?
-6. Do we add application access logs (IP, path)? If so they need a row with a short retention.
-7. In-app notifications: 90 days whether read or not, or keep unread ones longer?
+A colleague's review answered some of these. Marked *proposed*: the team still decides.
+
+1. Retention values (24 months, 90 days, 30 days, 13 months): *proposed: fine as they are.*
+2. Is "my region" [U3] kept? If not, row 5 disappears. *Team's call.*
+3. A target whose author leaves: *proposed: delete it, and note that a real deployment would reassign it to the region.*
+4. Pace alert (U16): *proposed: opt-in, a missing tolerance means off, so no extra flag.* This is a gap in U16 itself, which should say so.
+5. Account deletion: *proposed: one event per module, triggered by a `DELETE /api/v1/me` endpoint in `platform`.*
+6. Application access logs (IP, path): *proposed: none.* If added, they need a row with a short retention.
+7. In-app notifications: *proposed: 90 days whether read or not.*
