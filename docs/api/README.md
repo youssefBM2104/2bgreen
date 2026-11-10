@@ -20,7 +20,7 @@ The `scope` string (`national`, `region:<code>`) is the Kafka key and the `scope
 - A missing value is `null` or absent, never `0`. Consumers accept both and ignore unknown fields.
 - `quality` is `PROVISIONAL`, `CONSOLIDATED` or `DEFINITIVE`. `latest` is practically always `PROVISIONAL`. A range can mix the three once the merged view exists.
 - `storedAt` is the time the row was written. It gives the freshness of the data.
-- `latest` reads `speed_snapshot` today and the merged view later, without a contract change.
+- `latest` reads `speed_snapshot` today (15 min, freshest) and may read the merged view later, without a contract change. The view exists since G4; range endpoints (G8) will read it.
 
 ## Errors
 
@@ -55,5 +55,5 @@ Used as fixtures by the frontend, by the stub in `platform` (F4) and by the API 
 ## Open points
 
 - Maximum range and pagination of the range endpoints. Regional trends (U12, U14) need months of history, so no cap is fixed.
-- Grain of range results: 15 min provisional, 30 min once the merged view exists (G4).
+- Grain of range results: 30 min, from the merged view `grid.merged_snapshot` (G4, done). Provisional rows are the average of their quarter-hours, see `docs/data/merged-view.md`. Not yet verified against cons-def.
 - Region code format (G1). A `GET /scopes` endpoint may be needed later.

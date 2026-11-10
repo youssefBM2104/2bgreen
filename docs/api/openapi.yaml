@@ -17,12 +17,14 @@ info:
     - **draft**: sketched here, not frozen until G8 (range implementation).
     - **reserved**: only the path shape is reserved, the region code format is decided in G1.
 
-    `latest` reads `speed_snapshot` today and the merged view later, without a contract change.
+    `latest` reads `speed_snapshot` today (15 min, freshest) and may read the merged view later, without a contract
+    change.
 
     Open points (not frozen):
     - Maximum range and pagination of the range endpoints. Regional trends (U12, U14) need months of history,
       so no cap is fixed yet.
-    - Grain of range results: 15 min for provisional rows, 30 min once the merged view exists (G4).
+    - Grain of range results: 30 min, from the merged view (G4, done). Provisional rows are the average of their
+      quarter-hours (not yet verified against cons-def, see docs/data/merged-view.md).
     - Format of the region `code` (G1), and whether a `GET /scopes` endpoint is needed.
 servers:
   - url: http://localhost:8081
@@ -78,8 +80,8 @@ paths:
       x-status: draft
       summary: National snapshots in a time range (draft)
       description: |
-        **Draft, not frozen until G8.** Rows are ordered by `observedAt` ascending and each one keeps its native
-        grain. For a given period the batch row wins over the provisional one (merged view), so a range can mix
+        **Draft, not frozen until G8.** Rows are ordered by `observedAt` ascending, at 30-min grain (merged
+        view). For a given period the batch row wins over the provisional one (merged view), so a range can mix
         the three qualities. An empty range is `200` with `items: []`.
       parameters:
         - $ref: '#/components/parameters/From'
