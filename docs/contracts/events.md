@@ -37,7 +37,7 @@ Same payload on both topics. `grid.snapshot-stored` adds one field, `storedAt`.
 | Field | Type | Unit | Notes |
 |---|---|---|---|
 | `schemaVersion` | integer | | Starts at `1`. Bump on any breaking change. |
-| `scope` | string | | `national`, later `region:<code>`. Same as the Kafka key. |
+| `scope` | string | | `national`, or `region:<code>` where `<code>` is ODRÉ's `code_insee_region` as is (e.g. `region:32`). Same as the Kafka key. |
 | `observedAt` | string | | UTC, ISO-8601 with `Z`, start of the 15-min period. |
 | `co2Intensity` | number | gCO2eq/kWh | Regional values are estimated, see `estimated`. |
 | `consumption` | number | MW | |
@@ -149,4 +149,4 @@ Rejected: shared bands computed by the stream. It would make the stream more mea
 
 - Invalid messages: log and skip, or send to a dead-letter topic (`grid.snapshot-received.dlt`)?
 - Whether a quality upgrade by the batch should also produce an event. Not needed for slice 1.
-- Region codes format for `scope` (decided when regional ingestion starts, issue G1).
+- ~~Region codes format for `scope`~~ Decided in G1: `region:<code_insee_region>`, the INSEE code kept as ODRÉ sends it (`region:32`, never the name). The regional URLs of the read API (G8) should use the same code.

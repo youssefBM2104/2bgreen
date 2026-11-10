@@ -32,6 +32,17 @@ public record GridSnapshot(
 	/** Scope of the whole of France. Regions are {@code region:<code>}. */
 	public static final String NATIONAL_SCOPE = "national";
 
+	/** Prefix of every regional scope, followed by the INSEE region code: {@code region:32}. */
+	public static final String REGION_SCOPE_PREFIX = "region:";
+
+	/** Scope of one region, from its INSEE code (e.g. {@code "32"} gives {@code region:32}). */
+	public static String regionScope(String inseeCode) {
+		if (inseeCode == null || inseeCode.isBlank()) {
+			throw new IllegalArgumentException("region code is required");
+		}
+		return REGION_SCOPE_PREFIX + inseeCode.strip();
+	}
+
 	public GridSnapshot {
 		if (scope == null || scope.isBlank()) {
 			throw new IllegalArgumentException("scope is required");

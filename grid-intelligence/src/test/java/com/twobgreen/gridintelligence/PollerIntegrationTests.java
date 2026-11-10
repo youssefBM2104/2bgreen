@@ -30,6 +30,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 import com.twobgreen.gridintelligence.application.OdreGateway;
 import com.twobgreen.gridintelligence.application.PollNationalReadings;
+import com.twobgreen.gridintelligence.application.PollRegionalReadings;
+import com.twobgreen.gridintelligence.application.RegionalOdreGateway;
 import com.twobgreen.gridintelligence.application.SnapshotPublisher;
 import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
 import com.twobgreen.gridintelligence.domain.GridSnapshot;
@@ -64,6 +66,9 @@ class PollerIntegrationTests {
 	SimulatedOdre odre;
 
 	@Autowired
+	SimulatedRegionalOdre regionalOdre;
+
+	@Autowired
 	SnapshotPublisher publisher;
 
 	@Autowired
@@ -84,6 +89,7 @@ class PollerIntegrationTests {
 	void listenToReceivedEvents() {
 		jdbc.update("DELETE FROM speed_snapshot");
 		odre.asked.clear();
+		regionalOdre.asked.clear();
 		received = consumerFactory.createConsumer("it-" + UUID.randomUUID(), "");
 		received.subscribe(List.of(Topics.SNAPSHOT_RECEIVED));
 	}
@@ -97,6 +103,35 @@ class PollerIntegrationTests {
 	void pollerIsScheduledUnderThePollerProfile() {
 		assertThat(context.containsBean("nationalPoller")).isTrue();
 		assertThat(context.getBean(PollNationalReadings.class)).isNotNull();
+		assertThat(context.containsBean("regionalPoller")).isTrue();
+		assertThat(context.getBean(PollRegionalReadings.class)).isNotNull();
+	}
+
+	@Test
+	void regionalSnapshotsAreKeyedByRegionAndCarryNoCo2() {
+		GridSnapshot hauts = regional("region:32", "2026-10-20T14:45:00Z");
+		GridSnapshot occitanie = regional("region:76", "2026-10-20T14:45:00Z");
+		regionalOdre.next = List.of(hauts, occitanie);
+
+		new PollRegionalReadings(regionalOdre, publisher, repository, Duration.ofHours(3), FIRST_START).poll();
+
+		List<ConsumerRecord<String, String>> records = awaitMessages(2, hauts, occitanie);
+		assertThat(records).extracting(ConsumerRecord::key).containsExactlyInAnyOrder("region:32", "region:76");
+		assertThat(records).extracting(record -> messages.parse(record.value()))
+				.containsExactlyInAnyOrder(hauts, occitanie)
+				.allSatisfy(snapshot -> assertThat(snapshot.co2Intensity()).isNull());
+		assertThat(regionalOdre.asked).containsExactly(FIRST_START.minus(Duration.ofHours(3)));
+	}
+
+	@Test
+	void regionalPollerResumesFromTheNewestStoredRegionalReadingNotTheNationalOne() {
+		repository.upsert(reading("2026-10-22T10:00:00Z"));
+		repository.upsert(regional("region:32", "2026-10-21T10:00:00Z"));
+		regionalOdre.next = List.of();
+
+		new PollRegionalReadings(regionalOdre, publisher, repository, Duration.ofHours(3), FIRST_START).poll();
+
+		assertThat(regionalOdre.asked).containsExactly(Instant.parse("2026-10-21T07:00:00Z"));
 	}
 
 	@Test
@@ -139,7 +174,7 @@ class PollerIntegrationTests {
 
 	/** Exactly {@code count} messages about these readings, then a quiet second: no extra message either. */
 	private List<ConsumerRecord<String, String>> awaitMessages(int count, GridSnapshot... readings) {
-		List<Instant> wanted = Arrays.stream(readings).map(GridSnapshot::observedAt).toList();
+		List<String> wanted = Arrays.stream(readings).map(PollerIntegrationTests::identity).toList();
 		List<ConsumerRecord<String, String>> found = new ArrayList<>();
 		await().atMost(LIMIT).until(() -> {
 			collect(wanted, found);
@@ -150,17 +185,27 @@ class PollerIntegrationTests {
 		return found;
 	}
 
-	private void collect(List<Instant> wanted, List<ConsumerRecord<String, String>> found) {
+	private void collect(List<String> wanted, List<ConsumerRecord<String, String>> found) {
 		for (ConsumerRecord<String, String> record : received.poll(Duration.ofMillis(500))) {
-			if (wanted.contains(messages.parse(record.value()).observedAt())) {
+			if (wanted.contains(identity(messages.parse(record.value())))) {
 				found.add(record);
 			}
 		}
 	}
 
+	/** (scope, observedAt): the topic is shared by the tests, a time alone could match another test's message. */
+	private static String identity(GridSnapshot snapshot) {
+		return snapshot.scope() + "@" + snapshot.observedAt();
+	}
+
 	private static GridSnapshot reading(String observedAt) {
 		return new GridSnapshot(GridSnapshot.NATIONAL_SCOPE, Instant.parse(observedAt), BigDecimal.valueOf(29), 49970, 49950, 49650, new Production(38499, 2632, 0, 37, null, 6225, 4656, 3768, 941), 0,
 				Quality.PROVISIONAL, false);
+	}
+
+	private static GridSnapshot regional(String scope, String observedAt) {
+		return new GridSnapshot(scope, Instant.parse(observedAt), null, 5539, null, null,
+				new Production(3562, null, null, null, 1173, 1374, 50, 3, 79), 0, Quality.PROVISIONAL, false);
 	}
 
 	/** Answers {@link #next} to every call and records what it was asked. */
@@ -177,6 +222,19 @@ class PollerIntegrationTests {
 		}
 	}
 
+	static class SimulatedRegionalOdre implements RegionalOdreGateway {
+
+		final List<Instant> asked = new CopyOnWriteArrayList<>();
+
+		volatile List<GridSnapshot> next = List.of();
+
+		@Override
+		public List<GridSnapshot> regionalReadingsAfter(Instant after) {
+			asked.add(after);
+			return next;
+		}
+	}
+
 	@TestConfiguration(proxyBeanMethods = false)
 	static class SimulatedOdreConfig {
 
@@ -185,6 +243,12 @@ class PollerIntegrationTests {
 		@Primary
 		SimulatedOdre simulatedOdre() {
 			return new SimulatedOdre();
+		}
+
+		@Bean
+		@Primary
+		SimulatedRegionalOdre simulatedRegionalOdre() {
+			return new SimulatedRegionalOdre();
 		}
 	}
 }

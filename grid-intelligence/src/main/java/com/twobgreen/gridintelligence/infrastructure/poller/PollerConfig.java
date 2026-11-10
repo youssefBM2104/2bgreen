@@ -8,6 +8,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import com.twobgreen.gridintelligence.application.OdreGateway;
 import com.twobgreen.gridintelligence.application.PollNationalReadings;
+import com.twobgreen.gridintelligence.application.PollRegionalReadings;
+import com.twobgreen.gridintelligence.application.RegionalOdreGateway;
 import com.twobgreen.gridintelligence.application.SnapshotPublisher;
 import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
 
@@ -30,5 +32,17 @@ class PollerConfig {
 	@Bean
 	NationalPoller nationalPoller(PollNationalReadings polls) {
 		return new NationalPoller(polls);
+	}
+
+	@Bean
+	PollRegionalReadings pollRegionalReadings(RegionalOdreGateway odre, SnapshotPublisher publisher,
+			SpeedSnapshotRepository stored, PollerProperties properties) {
+		return new PollRegionalReadings(odre, publisher, stored, properties.regionalOverlap(),
+				properties.firstStart());
+	}
+
+	@Bean
+	RegionalPoller regionalPoller(PollRegionalReadings polls) {
+		return new RegionalPoller(polls);
 	}
 }

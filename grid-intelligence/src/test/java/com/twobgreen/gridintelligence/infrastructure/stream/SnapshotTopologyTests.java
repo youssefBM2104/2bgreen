@@ -134,5 +134,11 @@ class SnapshotTopologyTests {
 			return history.stream().filter(s -> s.scope().equals(scope)).map(GridSnapshot::observedAt)
 					.max(Instant::compareTo);
 		}
+
+		@Override
+		public Optional<Instant> latestRegionalObservedAt() {
+			return history.stream().filter(s -> s.scope().startsWith("region:")).map(GridSnapshot::observedAt)
+					.max(Instant::compareTo);
+		}
 	}
 }

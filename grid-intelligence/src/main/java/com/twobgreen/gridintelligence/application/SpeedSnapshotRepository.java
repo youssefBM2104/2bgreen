@@ -24,4 +24,10 @@ public interface SpeedSnapshotRepository {
 	 * stored data ends, so a restart re-sends (duplicates are absorbed) rather than skips.
 	 */
 	Optional<Instant> latestObservedAt(String scope);
+
+	/**
+	 * When the newest stored reading of any region was observed. Read by the regional poller at startup, like
+	 * {@link #latestObservedAt(String)} for the national one.
+	 */
+	Optional<Instant> latestRegionalObservedAt();
 }
