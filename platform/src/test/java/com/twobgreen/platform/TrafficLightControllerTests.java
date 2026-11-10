@@ -10,12 +10,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.net.ConnectException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -35,12 +38,13 @@ import com.twobgreen.platform.advisory.domain.GridReading;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
 @AutoConfigureMockMvc
-class GridReadingControllerTests {
+class TrafficLightControllerTests {
 
-	private static final String LATEST = "/api/v1/advisory/grid/latest";
+	private static final String LATEST = "/api/v1/advisory/traffic-light";
 
-	private static final GridReading READING = new GridReading("national", Instant.parse("2026-10-20T14:45:00Z"),
-			new BigDecimal("29"), GridQuality.PROVISIONAL, false, Instant.parse("2026-10-20T15:03:12Z"));
+	private static GridReading reading(BigDecimal co2, Instant observedAt) {
+		return new GridReading("national", observedAt, co2, GridQuality.PROVISIONAL, false, observedAt);
+	}
 
 	@Autowired
 	MockMvc mvc;
@@ -67,28 +71,41 @@ class GridReadingControllerTests {
 		mvc.perform(get(LATEST).with(tokenWithRole("regional_official"))).andExpect(status().isForbidden());
 	}
 
-	@Test
-	void citizenGetsTheReading() throws Exception {
-		when(readings.latestNational()).thenReturn(Optional.of(READING));
+	@ParameterizedTest
+	@CsvSource({ "19, GREEN", "20, AMBER", "39, AMBER", "40, RED" })
+	void citizenGetsTheLevelOfTheConfiguredLimits(BigDecimal co2, String level) throws Exception {
+		Instant observedAt = Instant.now().minusSeconds(60);
+		when(readings.latestNational()).thenReturn(Optional.of(reading(co2, observedAt)));
 
 		mvc.perform(get(LATEST).with(tokenWithRole("citizen")))
 				.andExpect(status().isOk())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-				.andExpect(jsonPath("$.scope").value("national"))
-				.andExpect(jsonPath("$.observedAt").value("2026-10-20T14:45:00Z"))
-				.andExpect(jsonPath("$.co2Intensity").value(29))
-				.andExpect(jsonPath("$.quality").value("PROVISIONAL"))
-				.andExpect(jsonPath("$.estimated").value(false))
-				.andExpect(jsonPath("$.storedAt").value("2026-10-20T15:03:12Z"));
+				.andExpect(jsonPath("$.level").value(level))
+				.andExpect(jsonPath("$.co2Intensity").value(co2.intValue()))
+				.andExpect(jsonPath("$.observedAt").value(observedAt.toString()))
+				.andExpect(jsonPath("$.stale").value(false));
 	}
 
 	@Test
-	void missingCo2StaysNull() throws Exception {
-		when(readings.latestNational()).thenReturn(Optional.of(new GridReading("national", READING.observedAt(), null,
-				GridQuality.PROVISIONAL, false, READING.storedAt())));
+	void anOldReadingIsNotPresentedAsCurrent() throws Exception {
+		Instant observedAt = Instant.now().minus(Duration.ofHours(3));
+		when(readings.latestNational()).thenReturn(Optional.of(reading(new BigDecimal("10"), observedAt)));
 
 		mvc.perform(get(LATEST).with(tokenWithRole("citizen")))
 				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.level").value("UNKNOWN"))
+				.andExpect(jsonPath("$.stale").value(true))
+				.andExpect(jsonPath("$.observedAt").value(observedAt.toString()));
+	}
+
+	@Test
+	void missingCo2IsUnknownAndStaysNull() throws Exception {
+		when(readings.latestNational()).thenReturn(Optional.of(reading(null, Instant.now())));
+
+		mvc.perform(get(LATEST).with(tokenWithRole("citizen")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.level").value("UNKNOWN"))
+				.andExpect(jsonPath("$.stale").value(false))
 				.andExpect(jsonPath("$.co2Intensity").value((Object) null));
 	}
 

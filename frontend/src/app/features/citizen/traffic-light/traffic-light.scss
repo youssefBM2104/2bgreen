@@ -1,0 +1,56 @@
+.card {
+  padding: 16px 24px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+}
+
+h2 {
+  margin-top: 0;
+  font: var(--mat-sys-title-medium);
+}
+
+.content {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.lamps {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #2b2b2b;
+}
+
+.lamp {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #555;
+}
+
+.lamp.red.on {
+  background: #e53935;
+}
+
+.lamp.amber.on {
+  background: #ffb300;
+}
+
+.lamp.green.on {
+  background: #43a047;
+}
+
+.title {
+  margin: 0 0 4px;
+  font: var(--mat-sys-headline-small);
+}
+
+.details {
+  margin-bottom: 0;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
