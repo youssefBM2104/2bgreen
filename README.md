@@ -32,7 +32,7 @@ frontend pages are not built yet.
 
 | Path | What it is |
 |---|---|
-| `docker-compose.yml` | Local infrastructure: TimescaleDB, Kafka, Keycloak |
+| `docker-compose.yml` | The whole stack: TimescaleDB, Kafka, Keycloak, and the two backends and the frontend (each has its own `Dockerfile`) |
 | `grid-intelligence/` | Spring Boot app that ingests and processes grid data (poller, stream, batch). Port 8081, DB schema `grid` |
 | `platform/` | Spring Boot app with the persona features, as a Spring Modulith modular monolith. Port 8080, DB schema `platform` |
 | `frontend/` | Angular app, one area per persona. Port 4200 |
@@ -46,11 +46,40 @@ frontend pages are not built yet.
 
 ## Getting started
 
+### Everything in one command (Docker)
+
+```bash
+docker compose up -d --build
+```
+
+The first build takes a few minutes (Maven and npm downloads); the next ones reuse the cache. Compose starts the
+services in order, each one waiting for the health of the ones it needs: TimescaleDB, Kafka and Keycloak, then
+`grid-intelligence` (speed layer: poller and stream, and the read API), then `platform`, then the frontend. When
+`docker compose ps` shows everything `healthy` (about 1 to 2 minutes), open http://localhost:4200 and log in as
+`citizen` / `citizen` (see "Keycloak" below for the other users).
+
+- **Wait for the first data.** On an empty database the poller backfills `eco2mix-national-tr` (about 70 ODRÉ calls) and the
+  regional dataset (about 820 calls, once, about 1.7 % of the monthly quota). The national rows land within a minute or
+  two, and the traffic light shows no reading (`NO_DATA`) until then. Reload the page after a minute.
+- **Batch layer (optional).** `docker compose --profile batch up -d` also starts the daily resync of consolidated data. Its
+  first run loads the whole history (about 257,000 rows, 17 calls).
+- **Ports:** frontend 4200, `platform` 8080, `grid-intelligence` 8081 (internal API, no authentication, keep it off public
+  networks), Keycloak 8180, Kafka 9092, TimescaleDB 5432. They must stay as they are: the browser calls `platform` and
+  Keycloak on `localhost`, and the Keycloak client and the CORS rule expect the frontend on `http://localhost:4200`.
+  So the stack is meant to run on the machine you browse from.
+- **Keycloak and the token issuer.** Tokens are issued for `http://localhost:8180/realms/2bgreen` (the address the
+  browser uses, fixed by `KC_HOSTNAME`). Inside Docker `platform` cannot reach that address, so it reads the signing keys
+  at `http://keycloak:8080` (`jwk-set-uri`) and still checks `iss` against `localhost:8180`.
+- **Data is kept** between `docker compose down` and the next `up`. `docker compose down -v` wipes it (the next start
+  backfills again). Logs: `docker compose logs -f platform`.
+
+The rest of this section is the mode for working on the code: only the infrastructure in Docker, the apps run by hand.
+
 ### 1. Infrastructure
 
 ```bash
-docker compose up -d
-docker compose ps        # timescaledb, kafka, keycloak should be "Up"
+docker compose up -d timescaledb kafka keycloak   # only the infrastructure, the apps run by hand below
+docker compose ps        # timescaledb, kafka, keycloak should be "healthy"
 ```
 
 | Service | Address | Credentials |
