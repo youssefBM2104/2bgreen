@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "scope": "region:32",
+  "observedAt": "2026-10-20T14:45:00Z",
+  "co2Intensity": 87,
+  "consumption": 5539,
+  "consumptionForecastDay": null,
+  "consumptionForecastDayBefore": null,
+  "production": {
+    "nuclear": 3562,
+    "thermal": 1173,
+    "wind": 1374,
+    "solar": 50,
+    "hydro": 3,
+    "bioenergy": 79
+  },
+  "pumping": 0,
+  "quality": "PROVISIONAL",
+  "estimated": true,
+  "storedAt": "2026-10-20T15:03:14Z"
+}

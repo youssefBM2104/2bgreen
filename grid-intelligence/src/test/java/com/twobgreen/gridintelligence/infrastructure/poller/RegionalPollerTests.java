@@ -16,6 +16,7 @@ import com.twobgreen.gridintelligence.application.RegionalOdreGateway;
 import com.twobgreen.gridintelligence.application.SnapshotPublisher;
 import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
 import com.twobgreen.gridintelligence.domain.GridSnapshot;
+import com.twobgreen.gridintelligence.domain.RegionalCo2Estimator;
 
 /** Whatever breaks, a regional tick never throws either. */
 class RegionalPollerTests {
@@ -46,7 +47,7 @@ class RegionalPollerTests {
 
 	private static void assertNeverThrows(RegionalOdreGateway odre, SnapshotPublisher publisher) {
 		RegionalPoller poller = new RegionalPoller(new PollRegionalReadings(odre, publisher, new EmptyStore(),
-				Duration.ofHours(3), Instant.parse("2026-08-31T22:00:00Z")));
+				new RegionalCo2Estimator(), Duration.ofHours(3), Instant.parse("2026-08-31T22:00:00Z")));
 
 		assertThatCode(poller::poll).doesNotThrowAnyException();
 		assertThatCode(poller::poll).doesNotThrowAnyException();

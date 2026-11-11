@@ -25,7 +25,7 @@ One row per `(region, date_heure)` pair — this dataset multiplexes all regions
 
 ## Carbon intensity — priority question for D1
 
-- **Confirmed by direct sample: no `taux_co2` field.** Regional data carries no carbon-intensity measure at all. CO2 for regions must be **estimated** from production mix using ADEME emission factors — this is issue G7, not solved here. This file just confirms the absence that makes G7 necessary.
+- **Confirmed by direct sample: no `taux_co2` field.** Regional data carries no carbon-intensity measure at all. CO2 for regions is **estimated** from the production mix (G7): method, factors and limits in [`regional-co2.md`](regional-co2.md).
 - Also confirmed: **no `prevision_j` / `prevision_j1` fields** — regional has no consumption forecasts either, unlike national.
 
 ## Fields (from one live sample, Hauts-de-France, 2026-10-20)
@@ -61,13 +61,14 @@ Committed under `grid-intelligence/src/test/resources/odre/`:
 
 ## How the ingestion reads this dataset (G1)
 
-- **ACL:** `RegionalRealtimeMapping`. `code_insee_region` gives the scope `region:<code>`; `thermique` goes to `production.thermal` (gas, coal and oil stay missing); `co2Intensity`, forecasts stay missing and `estimated` stays `false` (no CO2 is invented, regional CO2 is G7). A row without measured consumption (pending) or without region code is dropped.
+- **ACL:** `RegionalRealtimeMapping`. `code_insee_region` gives the scope `region:<code>`; `thermique` goes to `production.thermal` (gas, coal and oil stay missing); `co2Intensity`, forecasts stay missing and `estimated` stays `false`: the ACL invents nothing. A row without measured consumption (pending) or without region code is dropped.
+- **CO2 (G7):** the regional poll (`PollRegionalReadings`) then applies the domain rule `RegionalCo2Estimator` to every reading before it is published: `co2Intensity` is set and `estimated` becomes `true`, unless a production source is missing. See [`regional-co2.md`](regional-co2.md).
 - **Query:** one request for all regions (`date_heure > after and date_heure < now`, ordered by `date_heure`), no region filter: the cost does not depend on the number of regions. Paging is by `date_heure` cursor; since a period has one row per region, a full page drops its last (possibly incomplete) period and the next page restarts just before it.
 - **Rhythm:** hourly (`poller.regional-interval`), because the dataset is said to be refreshed hourly (data.gouv description, **not yet checked on the live API**: if it refreshes every 15 min, lower the interval). Overlap of 3 h (`poller.regional-overlap`) because regions are not filled in at the same pace.
 - **Quota:** about 2,160 calls/month (+ 2,880 for the national poll) = about 10 % of 50,000; one-time backfill of about 600 calls (50 days x 96 periods x 12 regions = 57,600 rows, 100 rows per page, 8 whole periods per full page).
 
 ## Open items for later (need a live curl)
 
-1. Get the actual list of the 12 region codes/names (currently only the count is confirmed, by arithmetic).
+1. ~~Get the actual list of the 12 region codes/names.~~ Done on 2026-11-11 (one live call for G7, the hour 2026-11-10 12:00 UTC): `11` Île-de-France, `24` Centre-Val de Loire, `27` Bourgogne-Franche-Comté, `28` Normandie, `32` Hauts-de-France, `44` Grand Est, `52` Pays de la Loire, `53` Bretagne, `75` Nouvelle-Aquitaine, `76` Occitanie, `84` Auvergne-Rhône-Alpes, `93` Provence-Alpes-Côte d'Azur. No Corse.
 2. Confirm the `eolien_terrestre`/`eolien_offshore` presence/absence pattern across more than one sample (observed absent here, present in regional cons-def — opposite of the national tr/cons-def pattern, but based on single samples each).
 3. Whether the sentinel strings `"ND"` / `"-"` observed in regional cons-def's `eolien` field (see that file) also occur here.

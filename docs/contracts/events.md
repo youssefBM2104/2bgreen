@@ -41,7 +41,7 @@ Same payload on both topics. `grid.snapshot-stored` adds one field, `storedAt`.
 | `schemaVersion` | integer | | Starts at `1`. Bump on any breaking change. |
 | `scope` | string | | `national`, or `region:<code>` where `<code>` is ODRÉ's `code_insee_region` as is (e.g. `region:32`). Same as the Kafka key. |
 | `observedAt` | string | | UTC, ISO-8601 with `Z`, start of the 15-min period. |
-| `co2Intensity` | number | gCO2eq/kWh | Regional values are estimated, see `estimated`. |
+| `co2Intensity` | number | gCO2eq/kWh | National: RTE's value. Regional: estimated from the production mix by the regional poll (G7, `docs/data/regional-co2.md`), whole number, imports not counted. See `estimated`. |
 | `consumption` | number | MW | |
 | `consumptionForecastDay` | number | MW | Forecast of **consumption**, not of CO2. |
 | `consumptionForecastDayBefore` | number | MW | Same, issued the day before. |
@@ -56,7 +56,7 @@ Same payload on both topics. `grid.snapshot-stored` adds one field, `storedAt`.
 | `production.bioenergy` | number | MW | |
 | `pumping` | number | MW | Power drawn from the grid to pump water uphill. **Zero or negative** (negative = MW withdrawn, 0 = idle). A positive value is a parsing error. Turbine output is already inside `production.hydro`. |
 | `quality` | string | | `PROVISIONAL` on these topics. Later values: `CONSOLIDATED`, `DEFINITIVE` (read API only). |
-| `estimated` | boolean | | `true` when CO2 is estimated (regional). `false` for national. |
+| `estimated` | boolean | | `true` exactly when `co2Intensity` is an estimate (regional). `false` for national, and for a regional reading with no CO2 (a production source was missing, so no estimate). |
 | `storedAt` | string | | **Stored topic only.** UTC time the row was saved. |
 
 Left out on purpose: exchange balance, per-border commercial exchanges, sub-breakdowns of gas, oil and bioenergy, battery fields.
@@ -158,7 +158,8 @@ A value equal to a limit belongs to the worse band. The limits are the proposal 
 - The first snapshot of a scope announces its band (`previousBand` is `null`).
 - A snapshot in the same band announces nothing.
 - A snapshot whose `observedAt` is not after the last one seen for the scope is ignored: a replay, or a late arrival. It never moves the state back.
-- A snapshot without `co2Intensity` has no band: it is ignored and does not count as seen. Regional scopes have no CO2 until the regional estimate (G7), so they announce nothing for now.
+- A snapshot without `co2Intensity` has no band: it is ignored and does not count as seen.
+- Regional scopes get a band from their estimated CO2 (G7), with the same limits. The estimate is production-based, so a region that produces little and imports a lot (Île-de-France, Bretagne) sits in `RED` most of the time: its band says what it produces, not what its consumers draw. See `docs/data/regional-co2.md`.
 - An invalid message is logged and skipped, like on the other topics.
 
 **Key and payload.** Key = `scope`. JSON, UTF-8:

@@ -304,8 +304,11 @@ gsql "SELECT count(*) FROM grid.speed_snapshot WHERE consumption IS NULL"
 gsql "SELECT observed_at, gap FROM (SELECT observed_at, observed_at - lag(observed_at) OVER (ORDER BY observed_at) AS gap
       FROM grid.speed_snapshot WHERE scope='national') g WHERE gap <> interval '15 minutes'"
 
-# Regional readings (12 regions, hourly poll). Expect 12 scopes, no CO2, estimated = false
-gsql "SELECT scope, count(*), max(observed_at), count(co2_intensity) AS with_co2 FROM grid.speed_snapshot
+# Regional readings (12 regions, hourly poll). Expect 12 scopes; CO2 is estimated (G7, docs/data/regional-co2.md),
+# so with_co2 = estimated_rows, and both equal count(*) unless a production source was missing.
+# Rows stored before G7 have no CO2: that doc says how to load them again.
+gsql "SELECT scope, count(*), max(observed_at), count(co2_intensity) AS with_co2, count(*) FILTER (WHERE estimated)
+      AS estimated_rows, round(avg(co2_intensity)) AS avg_co2 FROM grid.speed_snapshot
       WHERE scope LIKE 'region:%' GROUP BY scope ORDER BY scope"
 
 # Messages: key = scope, K1 JSON; the stored topic adds storedAt

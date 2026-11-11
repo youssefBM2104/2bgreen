@@ -111,7 +111,8 @@ paths:
       summary: Latest snapshot of a region
       description: |
         The `scope` field of the body is `region:<code>`, as on Kafka. Regional data has no CO2 measure or forecast:
-        `co2Intensity` is `null` until the regional estimate exists (G7), which will set `estimated: true`.
+        `co2Intensity` is an estimate from the production mix (G7, `docs/data/regional-co2.md`), and then
+        `estimated` is `true`. It is `null` (and `estimated` `false`) when a production source is missing.
       parameters:
         - $ref: '#/components/parameters/RegionCode'
       responses:
@@ -123,7 +124,10 @@ paths:
                 $ref: '#/components/schemas/Snapshot'
               examples:
                 region:
-                  summary: Regional shape
+                  summary: Regional shape, CO2 estimated
+                  externalValue: ./examples/regions-latest.json
+                regionSourceMissing:
+                  summary: Regional shape, hydro missing, so no estimate
                   externalValue: ./examples/regions-latest-draft.json
         '404':
           description: |
@@ -165,7 +169,7 @@ paths:
                 $ref: '#/components/schemas/SnapshotRange'
               examples:
                 region:
-                  summary: Two periods of a region (abridged)
+                  summary: Two periods of a region (abridged, hydro missing, so no CO2 estimate)
                   externalValue: ./examples/range-region.json
         '400':
           $ref: '#/components/responses/InvalidParameter'
@@ -265,7 +269,9 @@ components:
           description: UTC, ISO-8601 with `Z`, start of the period (15 or 30 min).
         co2Intensity:
           type: [number, 'null']
-          description: gCO2eq/kWh. Estimated for regions (see `estimated`).
+          description: |
+            gCO2eq/kWh. National: RTE's value. Regions: estimated from the production mix (see `estimated`), a
+            whole number, describing what the region produces, not what it consumes (imports are not counted).
         consumption:
           type: [integer, 'null']
           description: MW.
@@ -285,7 +291,9 @@ components:
           $ref: '#/components/schemas/Quality'
         estimated:
           type: boolean
-          description: '`true` when CO2 is estimated (regional). `false` for national.'
+          description: |
+            `true` exactly when `co2Intensity` is an estimate (regional, G7). `false` for national, and for a
+            regional snapshot with no CO2 (a production source was missing).
         storedAt:
           type: string
           format: date-time

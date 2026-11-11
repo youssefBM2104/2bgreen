@@ -3,6 +3,7 @@ package com.twobgreen.gridintelligence.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -15,7 +16,9 @@ import org.junit.jupiter.api.Test;
 
 import com.twobgreen.gridintelligence.application.OdreException.Reason;
 import com.twobgreen.gridintelligence.domain.GridSnapshot;
+import com.twobgreen.gridintelligence.domain.Production;
 import com.twobgreen.gridintelligence.domain.Quality;
+import com.twobgreen.gridintelligence.domain.RegionalCo2Estimator;
 
 /** The regional poller's rules without Spring, Kafka or ODRÉ. */
 class PollRegionalReadingsTests {
@@ -34,7 +37,8 @@ class PollRegionalReadingsTests {
 
 	private final FakeStore store = new FakeStore();
 
-	private final PollRegionalReadings polls = new PollRegionalReadings(odre, publisher, store, OVERLAP, FIRST_START);
+	private final PollRegionalReadings polls = new PollRegionalReadings(odre, publisher, store,
+			new RegionalCo2Estimator(), OVERLAP, FIRST_START);
 
 	@Test
 	void emptyDatabaseStartsAtTheFirstStart() {
@@ -67,6 +71,21 @@ class PollRegionalReadingsTests {
 				"region:32");
 		assertThat(result.published()).isEqualTo(3);
 		assertThat(odre.asked).containsExactly(FIRST_START.minus(OVERLAP), T1500.minus(OVERLAP));
+	}
+
+	@Test
+	void readingsArePublishedWithTheirEstimatedCo2() {
+		GridSnapshot complete = new GridSnapshot("region:32", T1445, null, 5539, null, null,
+				new Production(3562, null, null, null, 1173, 1374, 50, 3, 79), 0, Quality.PROVISIONAL, false);
+		GridSnapshot hydroMissing = new GridSnapshot("region:76", T1445, null, 3805, null, null,
+				new Production(1257, null, null, null, 1, 376, 0, null, 0), null, Quality.PROVISIONAL, false);
+		odre.answer(List.of(complete, hydroMissing));
+
+		polls.poll();
+
+		assertThat(publisher.published).extracting(GridSnapshot::co2Intensity)
+				.containsExactly(BigDecimal.valueOf(87), null);
+		assertThat(publisher.published).extracting(GridSnapshot::estimated).containsExactly(true, false);
 	}
 
 	@Test

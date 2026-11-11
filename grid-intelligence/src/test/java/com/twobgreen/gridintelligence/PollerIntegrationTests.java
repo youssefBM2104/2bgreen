@@ -37,6 +37,7 @@ import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
 import com.twobgreen.gridintelligence.domain.GridSnapshot;
 import com.twobgreen.gridintelligence.domain.Production;
 import com.twobgreen.gridintelligence.domain.Quality;
+import com.twobgreen.gridintelligence.domain.RegionalCo2Estimator;
 import com.twobgreen.gridintelligence.infrastructure.messaging.SnapshotMessages;
 import com.twobgreen.gridintelligence.infrastructure.messaging.Topics;
 
@@ -108,18 +109,20 @@ class PollerIntegrationTests {
 	}
 
 	@Test
-	void regionalSnapshotsAreKeyedByRegionAndCarryNoCo2() {
+	void regionalSnapshotsAreKeyedByRegionAndCarryTheirEstimatedCo2() {
 		GridSnapshot hauts = regional("region:32", "2026-10-20T14:45:00Z");
 		GridSnapshot occitanie = regional("region:76", "2026-10-20T14:45:00Z");
 		regionalOdre.next = List.of(hauts, occitanie);
 
-		new PollRegionalReadings(regionalOdre, publisher, repository, Duration.ofHours(3), FIRST_START).poll();
+		newRegionalPoller().poll();
 
 		List<ConsumerRecord<String, String>> records = awaitMessages(2, hauts, occitanie);
 		assertThat(records).extracting(ConsumerRecord::key).containsExactlyInAnyOrder("region:32", "region:76");
 		assertThat(records).extracting(record -> messages.parse(record.value()))
-				.containsExactlyInAnyOrder(hauts, occitanie)
-				.allSatisfy(snapshot -> assertThat(snapshot.co2Intensity()).isNull());
+				.allSatisfy(snapshot -> {
+					assertThat(snapshot.co2Intensity()).isEqualTo(BigDecimal.valueOf(87));
+					assertThat(snapshot.estimated()).isTrue();
+				});
 		assertThat(regionalOdre.asked).containsExactly(FIRST_START.minus(Duration.ofHours(3)));
 	}
 
@@ -129,7 +132,7 @@ class PollerIntegrationTests {
 		repository.upsert(regional("region:32", "2026-10-21T10:00:00Z"));
 		regionalOdre.next = List.of();
 
-		new PollRegionalReadings(regionalOdre, publisher, repository, Duration.ofHours(3), FIRST_START).poll();
+		newRegionalPoller().poll();
 
 		assertThat(regionalOdre.asked).containsExactly(Instant.parse("2026-10-21T07:00:00Z"));
 	}
@@ -170,6 +173,11 @@ class PollerIntegrationTests {
 	/** A poller as after a (re)start: same beans, cursor not loaded yet. */
 	private PollNationalReadings newPoller() {
 		return new PollNationalReadings(odre, publisher, repository, OVERLAP, FIRST_START);
+	}
+
+	private PollRegionalReadings newRegionalPoller() {
+		return new PollRegionalReadings(regionalOdre, publisher, repository, new RegionalCo2Estimator(),
+				Duration.ofHours(3), FIRST_START);
 	}
 
 	/** Exactly {@code count} messages about these readings, then a quiet second: no extra message either. */

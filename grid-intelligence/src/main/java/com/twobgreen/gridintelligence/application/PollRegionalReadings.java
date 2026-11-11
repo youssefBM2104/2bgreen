@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import com.twobgreen.gridintelligence.domain.GridSnapshot;
+import com.twobgreen.gridintelligence.domain.RegionalCo2Estimator;
 
 /**
  * Use case of the regional poller: same guarantees as {@link PollNationalReadings} (the cursor only moves once
@@ -15,6 +16,9 @@ import com.twobgreen.gridintelligence.domain.GridSnapshot;
  * pace, so the overlap is wider than the national one: a region that is late by less than the overlap is still
  * caught at the next poll. Its pending rows (no measured consumption) are not readings, so they never move the
  * cursor and are asked for again until ODRÉ fills them in.
+ * <p>
+ * Regional data has no CO2: each reading gets its estimate (G7) before it is published, so Kafka, the speed table and
+ * the read API all carry the same value, marked {@code estimated}.
  */
 public class PollRegionalReadings {
 
@@ -28,6 +32,8 @@ public class PollRegionalReadings {
 
 	private final SpeedSnapshotRepository stored;
 
+	private final RegionalCo2Estimator co2;
+
 	private final Duration overlap;
 
 	private final Instant firstStart;
@@ -40,10 +46,11 @@ public class PollRegionalReadings {
 	 * @param firstStart where to start when no regional reading is stored yet
 	 */
 	public PollRegionalReadings(RegionalOdreGateway odre, SnapshotPublisher publisher, SpeedSnapshotRepository stored,
-			Duration overlap, Instant firstStart) {
+			RegionalCo2Estimator co2, Duration overlap, Instant firstStart) {
 		this.odre = odre;
 		this.publisher = publisher;
 		this.stored = stored;
+		this.co2 = co2;
 		this.overlap = overlap;
 		this.firstStart = firstStart;
 	}
@@ -59,7 +66,7 @@ public class PollRegionalReadings {
 			lastSeen = stored.latestRegionalObservedAt().orElse(firstStart);
 		}
 		Instant after = lastSeen.minus(overlap);
-		List<GridSnapshot> readings = odre.regionalReadingsAfter(after);
+		List<GridSnapshot> readings = odre.regionalReadingsAfter(after).stream().map(co2::estimate).toList();
 		publisher.publish(readings);
 		readings.stream()
 				.map(GridSnapshot::observedAt)

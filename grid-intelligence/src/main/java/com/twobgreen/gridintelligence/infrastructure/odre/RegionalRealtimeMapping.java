@@ -18,8 +18,9 @@ import com.twobgreen.gridintelligence.domain.Quality;
  * <li>scope is {@code region:<code_insee_region>};</li>
  * <li>fossil production is the single aggregate {@code thermique}, which goes to {@code production.thermal}
  * (gas, coal and oil stay missing);</li>
- * <li>no CO2 and no forecasts exist, so those fields stay missing: no CO2 is invented here (regional CO2 is G7,
- * and {@code estimated} stays false until a CO2 value is actually estimated).</li>
+ * <li>no CO2 and no forecasts exist, so those fields stay missing and {@code estimated} is false. The CO2 estimate
+ * (G7) is a domain rule, applied by the regional poll after this mapping
+ * ({@link com.twobgreen.gridintelligence.domain.RegionalCo2Estimator}).</li>
  * </ul>
  */
 final class RegionalRealtimeMapping {
