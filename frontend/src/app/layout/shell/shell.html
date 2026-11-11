@@ -8,7 +8,17 @@
     }
   </nav>
   @if (auth.isLoggedIn()) {
-    <button mat-button class="logout" type="button" (click)="auth.logout()">Se déconnecter</button>
+    <div class="account">
+      @if (hasNotifications()) {
+        <!-- Chargée à part : le menu et la pastille Material ne pèsent pas sur le premier affichage. -->
+        @defer (on immediate) {
+          <app-notification-bell />
+        }
+      }
+      <button mat-button class="logout" type="button" (click)="auth.logout()">
+        Se déconnecter
+      </button>
+    </div>
   }
 </mat-toolbar>
 

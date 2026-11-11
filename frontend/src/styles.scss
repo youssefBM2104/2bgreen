@@ -37,3 +37,8 @@ body {
   height: 100%;
 }
 /* You can add global styles to this file, and also import other style files */
+
+// La boîte de notifications : un menu Material est rendu hors de son composant, d'où ce style global.
+.notification-panel.mat-mdc-menu-panel {
+  max-width: min(420px, calc(100vw - 32px));
+}

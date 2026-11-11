@@ -100,6 +100,37 @@ median 24, max 65) and split them into about 40% green, 35% amber and 25% red. T
 to re-check in winter. The stub's reading is always `stale`; to see a colour with it, add
 `--advisory.traffic-light.max-age=P3650D`.
 
+Clean-grid alerts (U2). A citizen stores a threshold; the rule engine compares it with every national snapshot
+published on `grid.snapshot-stored` and writes a notification when the CO2 intensity goes below it. The user is
+always the `sub` of the token, never a value of the request.
+
+| Endpoint | Role | What it does |
+|---|---|---|
+| `GET /api/v1/automation/alerts` | `citizen` | The caller's alerts: `id`, `threshold`, `active`, `createdAt`, `updatedAt` |
+| `POST /api/v1/automation/alerts` | `citizen` | Body `{"threshold": 30}` (`active` optional, default `true`). `201` with the alert |
+| `PUT /api/v1/automation/alerts/{id}` | `citizen` | Body `{"threshold": 30, "active": false}`, both required |
+| `DELETE /api/v1/automation/alerts/{id}` | `citizen` | `204` |
+| `GET /api/v1/notifications` | `citizen`, `regional_official` | `unreadCount` and `items` (the 50 newest: `id`, `type`, `message`, `createdAt`, `readAt`) |
+| `POST /api/v1/notifications/{id}/read` | same | `204`, also when already read |
+| `POST /api/v1/notifications/read-all` | same | `204` |
+| `GET /api/v1/advisory/traffic-light/limits` | `citizen` | `greenBelow`, `amberBelow`: the alert form proposes them |
+
+Errors are Problem Details with a `code`: `400` `INVALID_ALERT` (threshold outside 1 to 1000), `409`
+`ALERT_LIMIT_REACHED` (5 alerts per user), `404` `ALERT_NOT_FOUND` / `NOTIFICATION_NOT_FOUND` (also for the alert or
+notification of another user, so its existence is not revealed). Changing the threshold of an alert, pausing it or
+switching it on again makes the engine forget what it knew about it: the next snapshot is compared as for a new alert.
+
+To see one end to end, run the speed layer, `platform` and the frontend, log in as `citizen`, open "Mes alertes" and
+create an alert at `1000`: the grid is always below, so the next snapshot stored (at most 15 minutes later) puts a
+notification on the bell of the header, which asks `platform` once a minute. Then:
+
+```bash
+docker exec 2bgreen-timescaledb psql -U postgres -d 2bgreen -c \
+  "SELECT id, user_id, threshold, active FROM platform.automation_alert_rule;
+   SELECT subject_id, state, last_crossing_at, last_observed_at FROM platform.automation_rule_state;
+   SELECT id, message, created_at, read_at FROM platform.delivery_notification ORDER BY id DESC LIMIT 5;"
+```
+
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
 (poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):
 

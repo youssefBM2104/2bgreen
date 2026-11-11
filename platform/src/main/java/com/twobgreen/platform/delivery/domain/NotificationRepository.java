@@ -16,8 +16,33 @@ public interface NotificationRepository extends ListCrudRepository<Notification,
 
 	Optional<Notification> findByIdAndUserId(Long id, String userId);
 
+	/** What the notification box shows: the newest first, and no more than {@code limit}. */
+	@Query("""
+			SELECT * FROM delivery_notification
+			WHERE user_id = :userId
+			ORDER BY created_at DESC, id DESC
+			LIMIT :limit
+			""")
+	List<Notification> findLatestOfUser(@Param("userId") String userId, @Param("limit") int limit);
+
 	/** The number on the badge. */
 	long countByUserIdAndReadAtIsNull(String userId);
+
+	/**
+	 * Marks one notification of this user as read. A notification already read keeps its first date. Returns the
+	 * number of rows changed.
+	 */
+	@Modifying
+	@Query("""
+			UPDATE delivery_notification SET read_at = :readAt
+			WHERE id = :id AND user_id = :userId AND read_at IS NULL
+			""")
+	int markRead(@Param("id") long id, @Param("userId") String userId, @Param("readAt") Instant readAt);
+
+	/** Marks every unread notification of this user as read. Returns the number of rows changed. */
+	@Modifying
+	@Query("UPDATE delivery_notification SET read_at = :readAt WHERE user_id = :userId AND read_at IS NULL")
+	int markAllRead(@Param("userId") String userId, @Param("readAt") Instant readAt);
 
 	/** Retention. */
 	@Modifying

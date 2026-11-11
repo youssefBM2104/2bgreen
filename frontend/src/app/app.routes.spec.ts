@@ -6,6 +6,7 @@ import { routes } from './app.routes';
 import { AuthService } from './core/auth/auth.service';
 import { AppRole } from './core/auth/roles';
 import { AccessDenied } from './shared/access-denied/access-denied';
+import { Alerts } from './features/citizen/alerts/alerts';
 import { CitizenHome } from './features/citizen/citizen-home';
 import { DevopsHome } from './features/devops/devops-home';
 import { OfficialHome } from './features/official/official-home';
@@ -34,6 +35,15 @@ describe('routes', () => {
   ] as const)('%s displays its space to a %s', async (url, role, component) => {
     await setup([role]);
     expect(await harness.navigateByUrl(url, component)).toBeInstanceOf(component);
+  });
+
+  it('displays the alerts page to a citizen and refuses it to the others', async () => {
+    await setup(['citizen']);
+    expect(await harness.navigateByUrl('/citoyen/alertes', Alerts)).toBeInstanceOf(Alerts);
+    TestBed.resetTestingModule();
+    await setup(['devops']);
+    await harness.navigateByUrl('/citoyen/alertes', AccessDenied);
+    expect(TestBed.inject(Router).url).toBe('/acces-refuse');
   });
 
   it('refuses a citizen who asks for the devops space', async () => {

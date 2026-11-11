@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { of } from 'rxjs';
 import { App } from './app';
 import { AuthService } from './core/auth/auth.service';
+import { NotificationsService } from './core/notifications/notifications.service';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -11,6 +12,11 @@ describe('App', () => {
       imports: [App],
       providers: [
         provideRouter([]),
+        // La cloche de l'en-tête interroge platform : ici elle reçoit une boîte fixe.
+        {
+          provide: NotificationsService,
+          useValue: { box: () => of({ unreadCount: 2, items: [] }) },
+        },
         {
           provide: AuthService,
           useValue: {
@@ -47,5 +53,25 @@ describe('App', () => {
     const hrefs = Array.from(root.querySelectorAll('nav a')).map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual(['/devops']);
     expect(root.querySelector('.logout')?.textContent).toContain('Se déconnecter');
+  });
+
+  it('shows the notification bell to a citizen', async () => {
+    TestBed.overrideProvider(AuthService, {
+      useValue: { roles: () => of(['citizen']), isLoggedIn: signal(true), logout: vi.fn() },
+    });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('app-notification-bell')).not.toBeNull();
+  });
+
+  it('shows no notification bell to a devops user, who is told by webhooks', async () => {
+    TestBed.overrideProvider(AuthService, {
+      useValue: { roles: () => of(['devops']), isLoggedIn: signal(true), logout: vi.fn() },
+    });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('app-notification-bell')).toBeNull();
   });
 });
