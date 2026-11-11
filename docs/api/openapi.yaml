@@ -13,19 +13,19 @@ info:
     Missing values are `null` or absent, never `0`. Consumers must accept both forms and ignore unknown fields.
 
     Endpoint status (`x-status`):
-    - **frozen**: built in slice 1, the contract will not change without a PR tagging all three.
-    - **draft**: sketched here, not frozen until G8 (range implementation).
-    - **reserved**: only the path shape is reserved, the region code format is decided in G1.
+    - **frozen**: built, the contract will not change without a PR tagging all three.
+    Since G8 every endpoint below is frozen: `latest` and ranges, for the nation and for a region.
 
-    `latest` reads `speed_snapshot` today (15 min, freshest) and may read the merged view later, without a contract
-    change.
+    Decided in G8:
+    - **Range limit**: at most 366 days between `from` and `to`. A wider request is refused with
+      `400 INVALID_PARAMETER`, never cut, so a client cannot take a partial answer for a complete one. No pagination.
+    - **Grain of range results**: 30 min, from the merged view (G4). `from` and `to` apply to the start of each
+      period. Provisional rows are the average of their quarter-hours (not yet verified against cons-def, see
+      docs/data/merged-view.md). `latest` stays on the speed layer (15 min).
+    - **Region `code`**: the INSEE code as ODRE sends it, two digits (`76`). Only the format is checked: anything else
+      is `404 SCOPE_UNKNOWN`, a well-formed code without data is `404 NO_DATA` (latest) or an empty range.
 
-    Open points (not frozen):
-    - Maximum range and pagination of the range endpoints. Regional trends (U12, U14) need months of history,
-      so no cap is fixed yet.
-    - Grain of range results: 30 min, from the merged view (G4, done). Provisional rows are the average of their
-      quarter-hours (not yet verified against cons-def, see docs/data/merged-view.md).
-    - Format of the region `code` (G1), and whether a `GET /scopes` endpoint is needed.
+    Still open: a `GET /scopes` endpoint, if a client needs the list of regions.
 servers:
   - url: http://localhost:8081
     description: Local development. Internal network only.
@@ -77,12 +77,12 @@ paths:
     get:
       tags: [national]
       operationId: getNationalSnapshots
-      x-status: draft
-      summary: National snapshots in a time range (draft)
+      x-status: frozen
+      summary: National snapshots in a time range
       description: |
-        **Draft, not frozen until G8.** Rows are ordered by `observedAt` ascending, at 30-min grain (merged
-        view). For a given period the batch row wins over the provisional one (merged view), so a range can mix
-        the three qualities. An empty range is `200` with `items: []`.
+        Rows are ordered by `observedAt` ascending, at 30-min grain (merged view). For a given period the batch row
+        wins over the provisional one, so a range can mix the three qualities. A period with no data is absent:
+        nothing is filled in. An empty range is `200` with `items: []`. At most 366 days between `from` and `to`.
       parameters:
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
@@ -107,12 +107,11 @@ paths:
     get:
       tags: [regions]
       operationId: getLatestRegionSnapshot
-      x-status: reserved
-      summary: Latest snapshot of a region (reserved)
+      x-status: frozen
+      summary: Latest snapshot of a region
       description: |
-        **Reserved, not frozen.** Only the path shape is fixed. The format of `code` is decided in G1. The `scope`
-        field of the body is `region:<code>`, as on Kafka. Regional data has no CO2 measure or forecast, and CO2
-        is estimated (`estimated: true`).
+        The `scope` field of the body is `region:<code>`, as on Kafka. Regional data has no CO2 measure or forecast:
+        `co2Intensity` is `null` until the regional estimate exists (G7), which will set `estimated: true`.
       parameters:
         - $ref: '#/components/parameters/RegionCode'
       responses:
@@ -124,12 +123,12 @@ paths:
                 $ref: '#/components/schemas/Snapshot'
               examples:
                 region:
-                  summary: Regional shape (draft)
+                  summary: Regional shape
                   externalValue: ./examples/regions-latest-draft.json
         '404':
           description: |
-            `NO_DATA`: the region is valid but has no snapshot with measures yet.
-            `SCOPE_UNKNOWN`: the region code is not recognised.
+            `NO_DATA`: the region code is well formed but has no snapshot with measures yet.
+            `SCOPE_UNKNOWN`: the region code is not an INSEE region code (not two digits).
           content:
             application/problem+json:
               schema:
@@ -147,9 +146,12 @@ paths:
     get:
       tags: [regions]
       operationId: getRegionSnapshots
-      x-status: reserved
-      summary: Snapshots of a region in a time range (reserved)
-      description: Reserved, same rules as the national range endpoint. Not frozen until G1 and G8.
+      x-status: frozen
+      summary: Snapshots of a region in a time range
+      description: |
+        Same rules as the national range endpoint. The region is checked first: a malformed code is `404
+        SCOPE_UNKNOWN` whatever `from` and `to` say. A well-formed code without data is `200` with `items: []`.
+        Regional batch data does not exist yet (G6), so every row is `PROVISIONAL` for now.
       parameters:
         - $ref: '#/components/parameters/RegionCode'
         - $ref: '#/components/parameters/From'
@@ -161,6 +163,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SnapshotRange'
+              examples:
+                region:
+                  summary: Two periods of a region (abridged)
+                  externalValue: ./examples/range-region.json
         '400':
           $ref: '#/components/responses/InvalidParameter'
         '404':
@@ -191,7 +197,9 @@ components:
       name: to
       in: query
       required: true
-      description: End of the range, **exclusive**. UTC, ISO-8601 with `Z`. Must be after `from`.
+      description: |
+        End of the range, **exclusive**. UTC, ISO-8601 with `Z`. Must be after `from`, and at most 366 days after it.
+        A period is part of the range when its start is in `[from, to)`.
       schema:
         type: string
         format: date-time
@@ -200,13 +208,15 @@ components:
       name: code
       in: path
       required: true
-      description: Region code. Format decided in G1 (reserved).
+      description: "Region code, ODRE's `code_insee_region` as is (two digits)."
       schema:
         type: string
         examples: ['76']
   responses:
     InvalidParameter:
-      description: Bad date format, or `from` is not before `to`. Code `INVALID_PARAMETER`.
+      description: |
+        `from` or `to` missing or not a UTC date-time, `from` not before `to`, or a range wider than 366 days.
+        Code `INVALID_PARAMETER`.
       content:
         application/problem+json:
           schema:
@@ -214,6 +224,8 @@ components:
           examples:
             invalidParameter:
               externalValue: ./examples/error-invalid-parameter.json
+            rangeTooLarge:
+              externalValue: ./examples/error-range-too-large.json
     InternalError:
       description: Unexpected failure. Code `INTERNAL_ERROR`.
       content:

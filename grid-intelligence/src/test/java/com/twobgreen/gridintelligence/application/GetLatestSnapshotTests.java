@@ -21,14 +21,14 @@ class GetLatestSnapshotTests {
 
 	@Test
 	void returnsWhatTheReaderFinds() {
-		GetLatestSnapshot useCase = new GetLatestSnapshot(scope -> Optional.of(STORED));
+		GetLatestSnapshot useCase = new GetLatestSnapshot(StubSnapshotReader.latest(scope -> Optional.of(STORED)));
 
 		assertThat(useCase.latest("national")).isSameAs(STORED);
 	}
 
 	@Test
 	void nothingStoredIsAnErrorOfItsOwn() {
-		GetLatestSnapshot useCase = new GetLatestSnapshot(scope -> Optional.empty());
+		GetLatestSnapshot useCase = new GetLatestSnapshot(StubSnapshotReader.latest(scope -> Optional.empty()));
 
 		assertThatThrownBy(() -> useCase.latest("national"))
 				.isInstanceOf(NoSnapshotException.class)
@@ -38,13 +38,36 @@ class GetLatestSnapshotTests {
 	@Test
 	void asksTheReaderForTheRequestedScope() {
 		String[] asked = new String[1];
-		GetLatestSnapshot useCase = new GetLatestSnapshot(scope -> {
+		GetLatestSnapshot useCase = new GetLatestSnapshot(StubSnapshotReader.latest(scope -> {
 			asked[0] = scope;
 			return Optional.of(STORED);
-		});
+		}));
 
 		useCase.latest("national");
 
 		assertThat(asked[0]).isEqualTo("national");
+	}
+
+	@Test
+	void aRegionIsReadUnderItsScope() {
+		String[] asked = new String[1];
+		GetLatestSnapshot useCase = new GetLatestSnapshot(StubSnapshotReader.latest(scope -> {
+			asked[0] = scope;
+			return Optional.of(STORED);
+		}));
+
+		useCase.latestOfRegion("76");
+
+		assertThat(asked[0]).isEqualTo("region:76");
+	}
+
+	@Test
+	void aRegionCodeThatIsNotAnInseeCodeNeverReachesTheReader() {
+		GetLatestSnapshot useCase = new GetLatestSnapshot(StubSnapshotReader.latest(scope -> {
+			throw new AssertionError("the reader must not be asked");
+		}));
+
+		assertThatThrownBy(() -> useCase.latestOfRegion("xx")).isInstanceOf(UnknownScopeException.class);
+		assertThatThrownBy(() -> useCase.latestOfRegion(null)).isInstanceOf(UnknownScopeException.class);
 	}
 }

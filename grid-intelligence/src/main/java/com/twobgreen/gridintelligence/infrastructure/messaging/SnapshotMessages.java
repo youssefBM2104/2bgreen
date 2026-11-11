@@ -4,10 +4,12 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 import com.twobgreen.gridintelligence.application.StoredSnapshot;
@@ -89,9 +91,29 @@ public class SnapshotMessages {
 
 	/** The {@code grid.snapshot-stored} payload: the received one plus {@code storedAt}. */
 	public String storedEvent(StoredSnapshot stored) {
+		return mapper.writeValueAsString(stored(stored));
+	}
+
+	/**
+	 * The answer of a range request (K2 {@code SnapshotRange}): the period asked for and, in {@code items}, each
+	 * snapshot written exactly as {@link #storedEvent} writes it.
+	 */
+	public String range(String scope, Instant from, Instant to, List<StoredSnapshot> items) {
+		ObjectNode root = mapper.createObjectNode();
+		root.put("scope", scope);
+		root.put("from", from.toString());
+		root.put("to", to.toString());
+		ArrayNode array = root.putArray("items");
+		for (StoredSnapshot item : items) {
+			array.add(stored(item));
+		}
+		return mapper.writeValueAsString(root);
+	}
+
+	private ObjectNode stored(StoredSnapshot stored) {
 		ObjectNode root = payload(stored.snapshot());
 		root.put("storedAt", stored.storedAt().toString());
-		return mapper.writeValueAsString(root);
+		return root;
 	}
 
 	private ObjectNode payload(GridSnapshot snapshot) {
