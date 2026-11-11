@@ -232,6 +232,10 @@ docker exec 2bgreen-kafka $K/kafka-console-consumer.sh --bootstrap-server localh
 docker exec 2bgreen-kafka $K/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
   --topic grid.snapshot-stored --from-beginning --property print.key=true --max-messages 2
 
+# Band changes (G9): one event per scope at the start, then only when the colour changes (not one per snapshot)
+docker exec 2bgreen-kafka $K/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
+  --topic grid.band-changed --from-beginning --property print.key=true
+
 # Messages per partition: each poll adds ~4-5 (the 1 h overlap, absorbed by the upsert), not thousands
 docker exec 2bgreen-kafka $K/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic grid.snapshot-received
 ```

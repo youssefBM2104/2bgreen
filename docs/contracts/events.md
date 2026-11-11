@@ -8,6 +8,7 @@ This contract defines the messages that travel on Kafka between the poller, the 
 |---|---|---|---|
 | `grid.snapshot-received` | poller (`grid-intelligence`, track A) | stream (`grid-stream`) | A new provisional reading came from ODRÉ. |
 | `grid.snapshot-stored` | stream (`grid-intelligence`, track B) | rule engine in `platform` (`platform-rules`) | The reading is saved in `speed_snapshot`. |
+| `grid.band-changed` | stream (`grid-intelligence`, stateful step, G9) | none yet (planned: `BAND_CHANGED` webhooks, U9) | The shared CO2 band (green / amber / red) of a scope changed. Read from `grid.snapshot-stored`. See section 7b. |
 
 Why two topics: `platform` only reacts to data that is already readable through the read API (K2). If it reacted to the raw topic, it could be told about a reading that is not stored yet.
 
@@ -22,13 +23,14 @@ The batch layer does not use Kafka: it writes `batch_snapshot` directly. So ever
 | Key | `scope` as a plain string | Messages of one scope stay in order. |
 | Value format | JSON, UTF-8 | Easy to read and to test with fixtures. |
 
-Topics are created by the applications' configuration (not by hand), so a fresh `docker compose up` works.
+The three topics use the same settings. Topics are created by the applications' configuration (not by hand), so a fresh `docker compose up` works. The state store of the band step also has a changelog topic, created by Kafka Streams (`grid-stream-band-state-changelog`), which is internal and not part of this contract.
 
 ## 3. Message identity and duplicates
 
 - A message is identified by (`scope`, `observedAt`).
 - Kafka delivers **at least once**, so duplicates are normal. Consumers must be idempotent: the stream does an upsert on (`scope`, `observedAt`), and the rule engine ignores a snapshot it has already evaluated.
 - Messages of one scope arrive in order. Different scopes have no ordering between them.
+- `grid.band-changed` follows the same rule: its identity is (`scope`, `observedAt`) of the snapshot that changed the band, and consumers must be idempotent on it. A duplicate can only follow a crash of the stream (see 7b).
 
 ## 4. Payload
 
@@ -138,14 +140,73 @@ Consequence: the shared kernel `Threshold` is used inside `platform`, not in the
 
 Rejected: shared bands computed by the stream. It would make the stream more meaningful, but would limit users to fixed bands.
 
+## 7b. Shared band (G9, decision)
+
+**Decision: the stream computes a shared CO2 band per scope and announces its changes.** This adds to section 7 and does not replace it: user thresholds still live in `platform`. The shared band is the same for everybody (the traffic light of the citizen page, F5), so nothing per user is computed in the stream. Section 7 had set this aside ("rejected") to keep the stream thin; G9 reverses that, because the course expects stateful stream processing, and a band that is remembered per scope is a real computation (state, ordering, replay).
+
+**What it does.** For each message of `grid.snapshot-stored`, the stream looks up the last band of the scope in a state store (key = `scope`), computes the band of the new snapshot from `co2Intensity` and publishes on `grid.band-changed` **only when the band changes**.
+
+| Band | CO2 intensity (gCO2eq/kWh) |
+|---|---|
+| `GREEN` | below 20 |
+| `AMBER` | 20 to below 40 |
+| `RED` | 40 and above |
+
+A value equal to a limit belongs to the worse band. The limits are the proposal of F5 (`advisory.traffic-light.*` in `platform`), written a second time in `stream.band.*` of `grid-intelligence`, because the two apps share no code. **Keep the two equal.** They are still to be validated as a team (F5).
+
+**Rules.**
+- The first snapshot of a scope announces its band (`previousBand` is `null`).
+- A snapshot in the same band announces nothing.
+- A snapshot whose `observedAt` is not after the last one seen for the scope is ignored: a replay, or a late arrival. It never moves the state back.
+- A snapshot without `co2Intensity` has no band: it is ignored and does not count as seen. Regional scopes have no CO2 until the regional estimate (G7), so they announce nothing for now.
+- An invalid message is logged and skipped, like on the other topics.
+
+**Key and payload.** Key = `scope`. JSON, UTF-8:
+
+| Field | Type | Notes |
+|---|---|---|
+| `schemaVersion` | integer | `1`. |
+| `scope` | string | Same as the key. |
+| `band` | string | `GREEN`, `AMBER` or `RED`: the new band. |
+| `previousBand` | string or null | The band before. `null` for the first announcement of a scope. |
+| `observedAt` | string | UTC, ISO-8601 with `Z`: the snapshot that changed the band. With `scope`, the identity of the event. |
+| `co2Intensity` | number | gCO2eq/kWh of that snapshot. |
+
+```json
+{
+  "schemaVersion": 1,
+  "scope": "national",
+  "band": "AMBER",
+  "previousBand": "GREEN",
+  "observedAt": "2026-10-20T14:45:00Z",
+  "co2Intensity": 33
+}
+```
+
+For the sequence green, green, amber, amber, green the topic gets exactly three events: green (previous `null`), amber (previous green), green (previous amber).
+
+**Why the band step reads `grid.snapshot-stored` and not the previous step of the stream.** A state store belongs to a partition. The stored topic is keyed by scope, so all snapshots of a scope reach the same task whatever key the original message had. It also means a band is only announced for a snapshot that is saved.
+
+**Guarantees.**
+- The state store is persistent and has a changelog topic. After a restart, or on another instance, the state is rebuilt from Kafka: no scope is announced again.
+- Delivery is **at least once** (the default of Kafka Streams), not exactly once. After a crash between the event being sent and the offsets being committed, a transition can be announced twice. Consumers dedupe on (`scope`, `observedAt`). Exactly-once would need the transactional settings of the broker and is not worth it here.
+- `grid.band-changed` is a signal of change, not the current state. To know the colour now, read the latest snapshot (K2): that is what the traffic light of `platform` does, and it also decides when a reading is too old to show a colour, which an event cannot say.
+
+**Consumers.** None yet. The planned one is the `BAND_CHANGED` condition of the DevOps webhooks (U9): `platform` already stores that condition (P7) and the rule engine (P8) skips it until this event exists.
+
 ## 8. Consumer groups
 
 | Group | Application | Reads |
 |---|---|---|
 | `grid-stream` | `grid-intelligence` (stream profile) | `grid.snapshot-received` |
 | `platform-rules` | `platform` (rule engine) | `grid.snapshot-stored` |
+| `grid-stream` (same application id) | `grid-intelligence` (stream profile, band step) | `grid.snapshot-stored` |
+| *(none yet)* | `platform`, for the `BAND_CHANGED` webhooks (U9) | `grid.band-changed` |
 
 ## 9. Open points
+
+- The band limits (20 and 40) are written in two places, `advisory.traffic-light.*` (`platform`) and `stream.band.*` (`grid-intelligence`). If one changes, the other must follow. A single source would need the read API to return the band, which changes K2.
+- Who consumes `grid.band-changed` (U9), and under which group.
 
 - Invalid messages: log and skip, or send to a dead-letter topic (`grid.snapshot-received.dlt`)?
 - Whether a quality upgrade by the batch should also produce an event. Not needed for slice 1.
