@@ -1,0 +1,7 @@
+{
+  "type": "about:blank",
+  "title": "Invalid API key",
+  "status": 401,
+  "detail": "This API key is unknown or has been revoked.",
+  "code": "INVALID_API_KEY"
+}

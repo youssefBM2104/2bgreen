@@ -5,8 +5,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Test-only endpoint under {@code /api/v1/public/**}, standing for the public API of U7 until it exists. Lives in
- * src/test so it never ships.
+ * Test-only endpoint under {@code /api/v1/public/**}: it tests the API-key chain alone, whatever the public
+ * endpoints of U7 need behind it. Lives in src/test so it never ships.
  */
 @RestController
 class PublicApiProbeController {

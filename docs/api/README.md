@@ -4,6 +4,10 @@
 
 **Internal API.** No authentication. It must stay on the Docker network and must never be exposed through a public route.
 
+The **public** API that DevOps scripts call is a different contract, served by `platform` with an API key:
+[`public-openapi.yaml`](public-openapi.yaml) (U7), examples in [`public-examples/`](public-examples/). It reads its
+data through this one, so the two never share a URL.
+
 ## Endpoints
 
 | Endpoint | Status | Meaning |

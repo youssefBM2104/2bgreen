@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "Invalid parameter",
+  "status": 400,
+  "detail": "The range is wider than 7 days. Split it into several calls.",
+  "instance": "/api/v1/public/intensity",
+  "code": "INVALID_PARAMETER"
+}

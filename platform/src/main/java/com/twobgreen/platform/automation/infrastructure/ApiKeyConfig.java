@@ -14,12 +14,15 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.twobgreen.platform.advisory.GridIntensity;
 import com.twobgreen.platform.automation.application.CheckApiKey;
+import com.twobgreen.platform.automation.application.GetCarbonIntensity;
 import com.twobgreen.platform.automation.application.ManageApiKeys;
 import com.twobgreen.platform.automation.domain.ApiKeyRepository;
 
 /**
- * API keys (U10): the use cases, and the security chain of {@code /api/v1/public/**}.
+ * API keys (U10) and the public API they open (U7): the use cases, and the security chain of
+ * {@code /api/v1/public/**}.
  * <p>
  * That chain is separate from the Keycloak one ({@code config.SecurityConfig}) and comes before it. It knows only
  * the {@code X-API-Key} header: no JWT (a Keycloak token alone gets a 401 there), no CORS (the public API is for
@@ -36,6 +39,12 @@ class ApiKeyConfig {
 			ApiKeyProperties properties) {
 		return new ManageApiKeys(keys, new TransactionTemplate(transactionManager), new SecureRandom(),
 				Clock.systemUTC(), properties.dailyQuota());
+	}
+
+	/** The public API itself (U7). The grid data comes from module {@code advisory}, through its public API. */
+	@Bean
+	GetCarbonIntensity getCarbonIntensity(GridIntensity grid) {
+		return new GetCarbonIntensity(grid);
 	}
 
 	@Bean

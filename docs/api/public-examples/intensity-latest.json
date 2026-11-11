@@ -1,0 +1,10 @@
+{
+  "scope": "national",
+  "observedAt": "2026-10-20T14:45:00Z",
+  "co2Intensity": 29,
+  "quality": "PROVISIONAL",
+  "estimated": false,
+  "trafficLight": "AMBER",
+  "stale": false,
+  "storedAt": "2026-10-20T15:03:12Z"
+}

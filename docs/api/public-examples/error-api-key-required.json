@@ -1,0 +1,7 @@
+{
+  "type": "about:blank",
+  "title": "API key required",
+  "status": 401,
+  "detail": "Send your API key in the X-API-Key header.",
+  "code": "API_KEY_REQUIRED"
+}

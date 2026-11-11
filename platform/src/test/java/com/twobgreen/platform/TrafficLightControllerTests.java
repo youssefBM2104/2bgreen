@@ -30,7 +30,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.twobgreen.platform.advisory.application.GridReadings;
-import com.twobgreen.platform.advisory.application.GridUnavailableException;
+import com.twobgreen.platform.advisory.GridUnavailableException;
 import com.twobgreen.platform.advisory.domain.GridQuality;
 import com.twobgreen.platform.advisory.domain.GridReading;
 

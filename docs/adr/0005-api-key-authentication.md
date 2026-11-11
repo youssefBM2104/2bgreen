@@ -4,7 +4,8 @@
 
 Accepted for the API-key path (built in U10, #42). The Keycloak path for humans (OIDC with PKCE, `platform` as a JWT
 resource server) is already in the code and gets its own section in this ADR with F1′ (#2). The public endpoints
-that use the key are U7 (#39).
+that use the key are built in U7 (#39): `GET /api/v1/public/intensity/latest` and `GET /api/v1/public/intensity`,
+contract `docs/api/public-openapi.yaml`.
 
 ## Context
 

@@ -1,0 +1,7 @@
+{
+  "type": "about:blank",
+  "title": "Quota exceeded",
+  "status": 429,
+  "detail": "This API key has used its 1000 calls of the day. The quota starts again at 00:00 UTC.",
+  "code": "QUOTA_EXCEEDED"
+}

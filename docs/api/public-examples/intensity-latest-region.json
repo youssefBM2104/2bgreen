@@ -1,0 +1,10 @@
+{
+  "scope": "region:76",
+  "observedAt": "2026-10-20T14:30:00Z",
+  "co2Intensity": null,
+  "quality": "PROVISIONAL",
+  "estimated": false,
+  "trafficLight": "UNKNOWN",
+  "stale": false,
+  "storedAt": "2026-10-20T14:48:10Z"
+}

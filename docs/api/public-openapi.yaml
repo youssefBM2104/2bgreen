@@ -1,0 +1,319 @@
+openapi: 3.1.0
+info:
+  title: 2bGreen public carbon-intensity API (U7)
+  version: 1.0.0
+  description: |
+    Public API of `platform` for DevOps users: read the carbon intensity of the French grid from a script or a CI
+    pipeline, to run a job when the grid is clean. It is served by `platform`, never by `grid-intelligence`, which
+    stays on the internal network (contract K2, `openapi.yaml`).
+
+    **Authentication.** Every call sends an API key in the `X-API-Key` header. A DevOps user creates and revokes
+    keys on the page "Mes clés d'API" (`/devops/cles`, U10). A Keycloak token is not accepted here: a call with
+    only an `Authorization: Bearer` header is a `401`. No CORS: this API is for scripts, not for a web page.
+    See ADR-005 (`docs/adr/0005-api-key-authentication.md`).
+
+    **Quota.** 1,000 calls per key and per UTC day. Every call that passes the key check counts, whatever its
+    answer (`400` and `503` included); a call refused for the quota does not. Each counted answer carries
+    `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset` (epoch seconds of the next 00:00 UTC).
+    Above the quota: `429 QUOTA_EXCEEDED` with `Retry-After` (seconds).
+
+    **Values.** `co2Intensity` is in gCO2eq/kWh. A missing value is `null`, never `0`. Dates are UTC, ISO-8601 with
+    `Z`. `quality` is `PROVISIONAL` (real-time data, may still change), `CONSOLIDATED` or `DEFINITIVE`. Regional
+    data has no published CO2: `co2Intensity` is `null` for a region until the regional estimate exists, and is
+    then marked `estimated: true`.
+
+    **Errors.** RFC 7807 Problem Details (`application/problem+json`) with a stable `code`. Switch on `code`, not on
+    `title` or `detail`.
+
+    Example:
+
+    ```sh
+    curl -s -H "X-API-Key: $TWOBGREEN_API_KEY" http://localhost:8080/api/v1/public/intensity/latest
+    curl -s -H "X-API-Key: $TWOBGREEN_API_KEY" \
+      "http://localhost:8080/api/v1/public/intensity?from=2026-11-09T00:00:00Z&to=2026-11-10T00:00:00Z"
+    ```
+servers:
+  - url: http://localhost:8080
+    description: Local development.
+security:
+  - apiKey: []
+tags:
+  - name: intensity
+    description: Carbon intensity of the grid.
+paths:
+  /api/v1/public/intensity/latest:
+    get:
+      tags: [intensity]
+      operationId: getLatestIntensity
+      summary: Latest carbon intensity, with the traffic-light colour
+      description: |
+        The most recent measured period (15 min). `trafficLight` is the colour shown to citizens: `GREEN` below
+        20 gCO2eq/kWh, `AMBER` below 40, `RED` from 40 (limits still to validate by the team). It is `UNKNOWN`
+        when the value is missing or when the reading is more than 2 hours old (`stale: true`).
+      parameters:
+        - $ref: '#/components/parameters/Scope'
+      responses:
+        '200':
+          description: The latest reading.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LatestIntensity'
+              examples:
+                national:
+                  externalValue: ./public-examples/intensity-latest.json
+                region:
+                  summary: A region, no CO2 published yet
+                  externalValue: ./public-examples/intensity-latest-region.json
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: '`NO_DATA`: nothing stored yet for this scope. Normal on a fresh start.'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                noData:
+                  externalValue: ./public-examples/error-no-data.json
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GridUnavailable'
+  /api/v1/public/intensity:
+    get:
+      tags: [intensity]
+      operationId: getIntensityRange
+      summary: Carbon intensity over a time range
+      description: |
+        Readings whose period starts from `from` (included) to `to` (excluded), ascending by `observedAt`, at a
+        30-minute grain. Consolidated and definitive data replace real-time data once published, so a range can mix
+        qualities. A period without data is absent, nothing is filled in. An empty range is `200` with `items: []`.
+        At most 7 days per call: a wider range is refused, never cut.
+      parameters:
+        - $ref: '#/components/parameters/Scope'
+        - name: from
+          in: query
+          required: true
+          description: Start of the range, included. UTC, ISO-8601 with `Z`.
+          schema:
+            type: string
+            format: date-time
+            examples: ['2026-11-09T00:00:00Z']
+        - name: to
+          in: query
+          required: true
+          description: End of the range, excluded. After `from`, and at most 7 days after it.
+          schema:
+            type: string
+            format: date-time
+            examples: ['2026-11-10T00:00:00Z']
+      responses:
+        '200':
+          description: The readings of the range.
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntensityRange'
+              examples:
+                national:
+                  summary: Three periods (abridged)
+                  externalValue: ./public-examples/intensity-range.json
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/QuotaExceeded'
+        '503':
+          $ref: '#/components/responses/GridUnavailable'
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: '`2bg_` followed by 43 characters. Shown once, when the key is created.'
+  parameters:
+    Scope:
+      name: scope
+      in: query
+      required: false
+      description: '`national` (default) or `region:<code>`, where `<code>` is the two-digit INSEE code of the region.'
+      schema:
+        type: string
+        default: national
+        pattern: '^(national|region:[0-9]{2})$'
+        examples: [national, 'region:76']
+  headers:
+    RateLimitLimit:
+      description: Calls allowed per key and per UTC day.
+      schema:
+        type: integer
+    RateLimitRemaining:
+      description: Calls left today, this one counted.
+      schema:
+        type: integer
+    RateLimitReset:
+      description: When the quota starts again, in epoch seconds (next 00:00 UTC).
+      schema:
+        type: integer
+  responses:
+    InvalidParameter:
+      description: |
+        `INVALID_PARAMETER`: a malformed `scope`, `from` or `to` missing or not a date-time, `from` not before `to`,
+        or a range wider than 7 days. `detail` says which.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            rangeTooWide:
+              externalValue: ./public-examples/error-invalid-parameter.json
+    Unauthorized:
+      description: |
+        `API_KEY_REQUIRED`: no `X-API-Key` header (a Keycloak token alone gets this answer).
+        `INVALID_API_KEY`: the key is unknown or revoked. Both cases get the same answer, on purpose.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            examples: ['ApiKey header="X-API-Key"']
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            keyRequired:
+              externalValue: ./public-examples/error-api-key-required.json
+            invalidKey:
+              externalValue: ./public-examples/error-invalid-api-key.json
+    QuotaExceeded:
+      description: '`QUOTA_EXCEEDED`: the key has used its calls of the UTC day. Not counted.'
+      headers:
+        Retry-After:
+          description: Seconds until the next 00:00 UTC.
+          schema:
+            type: integer
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            quotaExceeded:
+              externalValue: ./public-examples/error-quota-exceeded.json
+    GridUnavailable:
+      description: '`GRID_UNAVAILABLE`: grid data cannot be read right now. Retry later.'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            gridUnavailable:
+              externalValue: ./public-examples/error-grid-unavailable.json
+  schemas:
+    Quality:
+      type: string
+      enum: [PROVISIONAL, CONSOLIDATED, DEFINITIVE]
+    LatestIntensity:
+      type: object
+      required: [scope, observedAt, co2Intensity, quality, estimated, trafficLight, stale, storedAt]
+      properties:
+        scope:
+          type: string
+          examples: [national]
+        observedAt:
+          type: string
+          format: date-time
+          description: UTC start of the 15-minute period.
+        co2Intensity:
+          type: [number, 'null']
+          description: gCO2eq/kWh. `null` when unknown, never `0`.
+        quality:
+          $ref: '#/components/schemas/Quality'
+        estimated:
+          type: boolean
+          description: '`true` when the CO2 value is estimated (regional data).'
+        trafficLight:
+          type: string
+          enum: [GREEN, AMBER, RED, UNKNOWN]
+        stale:
+          type: boolean
+          description: '`true` when the reading is more than 2 hours old: it no longer describes the grid right now.'
+        storedAt:
+          type: string
+          format: date-time
+          description: UTC time the reading was stored. Gives the freshness of the data.
+    IntensityPoint:
+      type: object
+      required: [observedAt, co2Intensity, quality, estimated]
+      properties:
+        observedAt:
+          type: string
+          format: date-time
+          description: UTC start of the 30-minute period.
+        co2Intensity:
+          type: [number, 'null']
+          description: gCO2eq/kWh. `null` when unknown, never `0`.
+        quality:
+          $ref: '#/components/schemas/Quality'
+        estimated:
+          type: boolean
+    IntensityRange:
+      type: object
+      required: [scope, from, to, items]
+      properties:
+        scope:
+          type: string
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        items:
+          type: array
+          description: Ascending by `observedAt`. Empty when nothing is stored in the range.
+          items:
+            $ref: '#/components/schemas/IntensityPoint'
+    Problem:
+      type: object
+      description: RFC 7807 Problem Details, with a stable `code` extension.
+      required: [title, status, code]
+      properties:
+        type:
+          type: string
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+          enum: [INVALID_PARAMETER, API_KEY_REQUIRED, INVALID_API_KEY, NO_DATA, QUOTA_EXCEEDED, GRID_UNAVAILABLE]
