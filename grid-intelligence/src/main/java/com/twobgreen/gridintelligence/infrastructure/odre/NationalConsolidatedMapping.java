@@ -3,6 +3,7 @@ package com.twobgreen.gridintelligence.infrastructure.odre;
 import static com.twobgreen.gridintelligence.infrastructure.odre.OdreNumbers.decimal;
 import static com.twobgreen.gridintelligence.infrastructure.odre.OdreNumbers.wholeNumber;
 
+import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
@@ -59,7 +60,7 @@ final class NationalConsolidatedMapping {
 		if (consumption == null) {
 			return Optional.empty();
 		}
-		if (isDaylightSavingPhantom(row)) {
+		if (isDaylightSavingPhantom(row.dateHeure(), row.heure())) {
 			log.debug("ODRÉ cons-def row at {} labelled {} is a DST phantom, dropped", row.dateHeure(), row.heure());
 			return Optional.empty();
 		}
@@ -90,21 +91,22 @@ final class NationalConsolidatedMapping {
 
 	/**
 	 * Does {@code heure} disagree with {@code date_heure} read in Paris time? A missing or unreadable {@code heure}
-	 * cannot disagree: the row is kept, since dropping it on a doubt would open a hole.
+	 * cannot disagree: the row is kept, since dropping it on a doubt would open a hole. Shared with the regional
+	 * cons-def, which has the same phantoms (checked on 2025-03-30).
 	 */
-	private static boolean isDaylightSavingPhantom(NationalConsolidatedRecord row) {
-		if (row.heure() == null) {
+	static boolean isDaylightSavingPhantom(Instant dateHeure, String heure) {
+		if (heure == null) {
 			return false;
 		}
 		LocalTime label;
 		try {
-			label = LocalTime.parse(row.heure().strip());
+			label = LocalTime.parse(heure.strip());
 		}
 		catch (DateTimeParseException e) {
-			log.warn("ODRÉ cons-def heure \"{}\" at {} is not HH:mm, DST check skipped", row.heure(), row.dateHeure());
+			log.warn("ODRÉ cons-def heure \"{}\" at {} is not HH:mm, DST check skipped", heure, dateHeure);
 			return false;
 		}
-		LocalTime paris = row.dateHeure().atZone(PARIS).toLocalTime().truncatedTo(ChronoUnit.MINUTES);
+		LocalTime paris = dateHeure.atZone(PARIS).toLocalTime().truncatedTo(ChronoUnit.MINUTES);
 		return !paris.equals(label);
 	}
 

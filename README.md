@@ -219,8 +219,8 @@ configuration at startup; to keep only the app's own lines, add
 `-Dspring-boot.run.arguments="--logging.level.org.apache.kafka=WARN"`. How to check the result: see
 "Checking the speed layer" below.
 
-The batch layer (daily resync of `eco2mix-national-cons-def` into `batch_snapshot`) is its own profile and does not
-need the poller or the stream:
+The batch layer (daily resync of `eco2mix-national-cons-def` and, since G6, `eco2mix-regional-cons-def` into
+`batch_snapshot`) is its own profile and does not need the poller or the stream:
 
 ```bash
 cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=batch
@@ -228,11 +228,20 @@ cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=batch
 
 On an empty table the first run loads the whole history (2012 to the last published date, about 257,000 rows, about
 17 ODRÉ calls, once). Later runs cost one call and say `nothing changed` unless ODRÉ added rows or moved a year from
-consolidated to definitive. Settings: `src/main/resources/application-batch.properties`. Check the result:
+consolidated to definitive. Settings: `src/main/resources/application-batch.properties`.
+
+The regional batch (G6) does the same for the 12 regions, from `batch.regional.first-year` (2021) on: about
+210,000 rows per year, 7 calls for the first load, 1 call a day after. Each reading gets the regional CO2 estimate of
+G7 (`estimated = true`), like the speed layer. **The first load is long:** ODRÉ sends a regional year at about 50 kB/s
+(18.6 min for 2021 on 2026-11-11), so about 2 hours for 2021 to 2026, once. That is why exports have their own timeout,
+`odre.export-read-timeout` (1 h); with the 20 s of the other calls every export failed, national included.
+The `tco_*` / `tch_*` rates of the dataset are not loaded: no feature uses them (the dashboard of U11 computes its
+coverage rate from consumption and production), and they would triple the download. Check the result:
 
 ```sql
-SELECT min(observed_at), max(observed_at), count(*) FROM grid.batch_snapshot;
-SELECT year, quality, row_count FROM grid.batch_sync_state ORDER BY year, quality;
+SELECT scope, min(observed_at), max(observed_at), count(*) FROM grid.batch_snapshot GROUP BY scope ORDER BY scope;
+-- one state per dataset: scope 'national' (G3) and 'regional' (G6, counts of all regions together)
+SELECT scope, year, quality, row_count FROM grid.batch_sync_state ORDER BY scope, year, quality;
 ```
 
 ### 3. Frontend

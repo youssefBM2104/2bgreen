@@ -15,7 +15,7 @@ data through this one, so the two never share a URL.
 | `GET /api/v1/national/snapshots/latest` | **frozen** (slice 1, built by D8) | Latest national snapshot with measures. A forecast-only row is never returned. |
 | `GET /api/v1/national/snapshots?from=&to=` | **frozen** (G8) | Snapshots in a range, 30-min grain, from the merged view. |
 | `GET /api/v1/regions/{code}/snapshots/latest` | **frozen** (G8) | Latest snapshot of a region. CO2 is an estimate (G7), `estimated: true`. |
-| `GET /api/v1/regions/{code}/snapshots?from=&to=` | **frozen** (G8) | Snapshots of a region in a range. Provisional only until the regional batch (G6). |
+| `GET /api/v1/regions/{code}/snapshots?from=&to=` | **frozen** (G8) | Snapshots of a region in a range. Consolidated or definitive from 2021 (regional batch, G6), provisional after. |
 
 The `scope` string (`national`, `region:<code>`) is the Kafka key and the `scope` field of the body, as in K1. It is not the URL syntax: the URL names the resource.
 
