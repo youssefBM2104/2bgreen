@@ -1,0 +1,106 @@
+<a mat-button routerLink="/devops">← Espace DevOps</a>
+
+<h1>Mes clés d'API</h1>
+<p>
+  Une clé d'API permet à vos scripts et pipelines de lire l'intensité carbone sans vous connecter.
+  Envoyez-la dans l'en-tête <code>X-API-Key</code>. Chaque clé a droit à un nombre d'appels par
+  jour, remis à zéro à minuit UTC.
+</p>
+
+@if (message(); as text) {
+  <p class="problem" role="alert">{{ text }}</p>
+}
+
+@if (created(); as fresh) {
+  <section class="card secret" aria-labelledby="secret-title">
+    <h2 id="secret-title">Votre nouvelle clé « {{ fresh.name }} »</h2>
+    <p>
+      <strong>Copiez-la maintenant : elle ne sera plus jamais affichée.</strong> 2bGreen n'en garde
+      qu'une empreinte et ne peut pas la retrouver. Si vous la perdez, révoquez-la et créez-en une
+      autre.
+    </p>
+    <p class="key"><code>{{ fresh.key }}</code></p>
+    <p class="actions">
+      <button mat-flat-button type="button" (click)="copy(fresh.key)">
+        {{ copied() ? 'Copiée' : 'Copier la clé' }}
+      </button>
+      <button mat-button type="button" (click)="dismiss()">J'ai copié la clé</button>
+    </p>
+  </section>
+}
+
+<section class="card" aria-labelledby="new-key-title">
+  <h2 id="new-key-title">Nouvelle clé</h2>
+  @if (full()) {
+    <p class="full">
+      Vous avez atteint la limite de {{ maxKeys }} clés actives. Révoquez-en une pour en créer une
+      autre.
+    </p>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="create()">
+      <mat-form-field>
+        <mat-label>Nom de la clé</mat-label>
+        <input matInput [maxlength]="maxName" [formControl]="name" placeholder="Pipeline CI" />
+        @if (name.invalid) {
+          <mat-error>Un nom de 1 à {{ maxName }} caractères.</mat-error>
+        }
+      </mat-form-field>
+      <button mat-flat-button type="submit" [disabled]="keys() === null">Créer la clé</button>
+    </form>
+  }
+</section>
+
+<section aria-labelledby="keys-title">
+  <h2 id="keys-title">
+    Vos clés actives
+    @if (keys(); as list) {
+      ({{ list.length }}/{{ maxKeys }})
+    }
+  </h2>
+  @if (keys(); as list) {
+    @if (list.length === 0) {
+      <p>Vous n'avez pas encore de clé.</p>
+    } @else {
+      <ul class="keys">
+        @for (key of list; track key.id) {
+          <li>
+            <div class="about">
+              <span class="name">{{ key.name }}</span>
+              <code class="prefix">{{ key.prefix }}…</code>
+              <span class="dates">
+                Créée le {{ time(key.createdAt) }} · dernier usage : {{ time(key.lastUsedAt) }}
+              </span>
+            </div>
+            <span class="usage">{{ key.callsToday }} / {{ key.dailyQuota }} appels aujourd'hui</span>
+            @if (confirming() === key.id) {
+              <span class="confirm">
+                <button
+                  mat-flat-button
+                  type="button"
+                  class="danger"
+                  [attr.aria-label]="'Confirmer la révocation de la clé ' + key.name"
+                  (click)="revoke(key)"
+                >
+                  Confirmer
+                </button>
+                <button mat-button type="button" (click)="confirming.set(null)">Annuler</button>
+              </span>
+            } @else {
+              <button
+                mat-button
+                type="button"
+                class="revoke"
+                [attr.aria-label]="'Révoquer la clé ' + key.name"
+                (click)="confirming.set(key.id)"
+              >
+                Révoquer
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    }
+  } @else if (!message()) {
+    <p>Chargement…</p>
+  }
+</section>
