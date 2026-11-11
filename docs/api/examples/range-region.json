@@ -1,0 +1,45 @@
+{
+  "scope": "region:76",
+  "from": "2026-10-20T14:00:00Z",
+  "to": "2026-10-20T15:00:00Z",
+  "items": [
+    {
+      "schemaVersion": 1,
+      "scope": "region:76",
+      "observedAt": "2026-10-20T14:00:00Z",
+      "co2Intensity": null,
+      "consumption": 3790,
+      "consumptionForecastDay": null,
+      "consumptionForecastDayBefore": null,
+      "production": {
+        "nuclear": 1250,
+        "thermal": 1,
+        "wind": 370,
+        "hydro": null
+      },
+      "pumping": null,
+      "quality": "PROVISIONAL",
+      "estimated": false,
+      "storedAt": "2026-10-20T14:48:10Z"
+    },
+    {
+      "schemaVersion": 1,
+      "scope": "region:76",
+      "observedAt": "2026-10-20T14:30:00Z",
+      "co2Intensity": null,
+      "consumption": 3805,
+      "consumptionForecastDay": null,
+      "consumptionForecastDayBefore": null,
+      "production": {
+        "nuclear": 1257,
+        "thermal": 1,
+        "wind": 376,
+        "hydro": null
+      },
+      "pumping": null,
+      "quality": "PROVISIONAL",
+      "estimated": false,
+      "storedAt": "2026-10-20T15:03:14Z"
+    }
+  ]
+}
