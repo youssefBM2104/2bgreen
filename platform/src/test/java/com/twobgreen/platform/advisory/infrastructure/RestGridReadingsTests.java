@@ -20,6 +20,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import com.twobgreen.platform.advisory.GridScope;
 import com.twobgreen.platform.advisory.GridUnavailableException;
+import com.twobgreen.platform.advisory.domain.GridMix;
 import com.twobgreen.platform.advisory.domain.GridQuality;
 import com.twobgreen.platform.advisory.domain.GridReading;
 
@@ -49,7 +50,40 @@ class RestGridReadingsTests {
 				new BigDecimal("29"),
 				GridQuality.PROVISIONAL,
 				false,
-				Instant.parse("2026-10-20T15:03:12Z")));
+				Instant.parse("2026-10-20T15:03:12Z"),
+				new GridMix(49970, 38499, 2632, 0, 37, null, 6225, 4656, 3768, 941)));
+	}
+
+	@Test
+	void anAbsentSourceAndANullOneAreBothMissingNeverZero() {
+		server.reply(200, K2Examples.read("latest-national-missing-values.json"));
+
+		// The example has gas, coal and oil null, hydro and bioenergy absent
+		assertThat(readings.latestNational()).get().extracting(GridReading::mix)
+				.isEqualTo(new GridMix(49500, 37350, null, null, null, 1450, 1180, 9100, null, null));
+	}
+
+	@Test
+	void aReadingWithoutMixKnowsNothingOfIt() {
+		server.reply(200, """
+				{"schemaVersion": 1, "scope": "region:93", "observedAt": "2026-10-20T14:45:00Z",
+				 "quality": "PROVISIONAL", "estimated": false, "storedAt": "2026-10-20T15:03:12Z"}
+				""");
+
+		assertThat(readings.latest(new GridScope("region:93"))).get().extracting(GridReading::mix)
+				.isEqualTo(GridMix.NONE);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "\"consumption\": 49970.5", "\"consumption\": \"49970\"", "\"production\": [1]",
+			"\"production\": {\"nuclear\": \"38499\"}" })
+	void aMixThatBreaksTheContractMeansUnavailable(String field) {
+		server.reply(200, """
+				{"schemaVersion": 1, "scope": "national", "observedAt": "2026-10-20T14:45:00Z", %s,
+				 "quality": "PROVISIONAL", "estimated": false, "storedAt": "2026-10-20T15:03:12Z"}
+				""".formatted(field));
+
+		assertThatThrownBy(readings::latestNational).isInstanceOf(GridUnavailableException.class);
 	}
 
 	@Test

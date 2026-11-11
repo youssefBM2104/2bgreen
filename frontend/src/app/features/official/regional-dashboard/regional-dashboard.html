@@ -1,0 +1,122 @@
+<section class="card" aria-labelledby="regional-dashboard-title" aria-live="polite">
+  @switch (state().kind) {
+    @case ('loading') {
+      <h2 id="regional-dashboard-title">Votre région</h2>
+      <p>Chargement…</p>
+    }
+    @case ('noRegion') {
+      <h2 id="regional-dashboard-title">Votre région</h2>
+      <p class="title">Aucune région rattachée</p>
+      <p>Votre compte n'est rattaché à aucune région. Demandez à un administrateur de le faire.</p>
+    }
+    @case ('noData') {
+      <h2 id="regional-dashboard-title">Votre région</h2>
+      <p class="title">Pas encore de données</p>
+      <p>Aucune mesure n'est encore disponible pour votre région.</p>
+    }
+    @case ('unavailable') {
+      <h2 id="regional-dashboard-title">Votre région</h2>
+      <p class="title">Données indisponibles</p>
+      <p>Impossible de lire les données du réseau. Réessayez dans quelques minutes.</p>
+    }
+    @case ('ready') {
+      @let d = dashboard()!;
+      @let r = d.regional;
+      @let n = d.national;
+      <h2 id="regional-dashboard-title">{{ d.region.name }}</h2>
+
+      <p class="when" [class.stale]="r.stale">
+        @if (r.stale) {
+          <strong>Données trop anciennes.</strong>
+          La dernière mesure date du {{ time(r.observedAt) }}, il y a plus de
+          {{ duration(d.maxAge) }} : elle ne décrit plus la région en ce moment.
+        } @else {
+          Mesure du {{ time(r.observedAt) }} (heure de Paris).
+          Les données régionales sont publiées avec quelques heures de retard : c'est normal.
+        }
+      </p>
+
+      @if (r.balance) {
+        <p class="title">{{ balances[r.balance] }}</p>
+        <p>Elle couvre {{ percent(r.coverageRate) }} de sa consommation par sa propre production.</p>
+      }
+
+      <table>
+        <caption>
+          {{ d.region.name }} et la France à la même heure
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col"></th>
+            <th scope="col">Région</th>
+            <th scope="col">
+              France
+              @if (n) {
+                <span class="sub">{{ time(n.observedAt) }}, moyenne sur 30 min</span>
+              }
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Consommation</th>
+            <td>{{ mw(r.consumption) }}</td>
+            <td>{{ n ? mw(n.consumption) : '—' }}</td>
+          </tr>
+          <tr class="total">
+            <th scope="row">Production</th>
+            <td>{{ mw(r.totalProduction) }}</td>
+            <td>{{ n ? mw(n.totalProduction) : '—' }}</td>
+          </tr>
+          @for (source of sources; track source.key) {
+            <tr class="source">
+              <th scope="row">{{ source.label }}</th>
+              <td>{{ mw(r.production[source.key]) }}</td>
+              <td>{{ n ? mw(n.production[source.key]) : '—' }}</td>
+            </tr>
+          }
+          <tr>
+            <th scope="row">Part renouvelable</th>
+            <td>{{ percent(r.renewableShare) }}</td>
+            <td>{{ n ? percent(n.renewableShare) : '—' }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Taux de couverture</th>
+            <td>{{ percent(r.coverageRate) }}</td>
+            <td>{{ n ? percent(n.coverageRate) : '—' }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Intensité CO₂</th>
+            <td class="co2">
+              {{ co2(r) }}
+              @if (r.co2Intensity !== null && r.co2Estimated) {
+                <span class="estimated">estimée</span>
+              }
+            </td>
+            <td class="co2">
+              @if (n) {
+                {{ co2(n) }}
+                @if (n.co2Intensity !== null) {
+                  <span class="estimated">{{ n.co2Estimated ? 'estimée' : 'valeur RTE' }}</span>
+                }
+              } @else {
+                —
+              }
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      @if (!n) {
+        <p class="details">Pas de donnée nationale pour cette heure-là.</p>
+      }
+
+      <p class="details">
+        L'intensité CO₂ régionale est une estimation à partir du mix de production de la région, sans compter
+        l'électricité qu'elle importe : une région qui produit peu peut afficher une valeur élevée.
+        <a [href]="methodUrl" target="_blank" rel="noopener">Comment ce chiffre est estimé</a>.
+        L'hydraulique inclut le turbinage des stations de pompage, que les données régionales ne séparent pas.
+      </p>
+    }
+  }
+</section>

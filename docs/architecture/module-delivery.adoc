@@ -4,4 +4,9 @@
 |Module `delivery`. Only this root package is the public API; sub-packages are internal.
 |Base package
 |`com.twobgreen.platform.delivery`
+|Spring components
+|_Services_
+
+* `c.t.p.d.InAppNotifications` (via `c.t.p.d.application.InAppNotificationService`)
+* `c.t.p.d.WebhookCalls` (via `c.t.p.d.application.WebhookCallService` -- One attempt per call for now, logged whatever happens. The retries and the count of consecutive failures are the policy of U9.)
 |===

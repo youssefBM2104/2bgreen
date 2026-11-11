@@ -10,6 +10,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import com.twobgreen.platform.advisory.domain.GridMix;
 import com.twobgreen.platform.advisory.domain.GridQuality;
 import com.twobgreen.platform.advisory.domain.GridReading;
 
@@ -68,7 +69,39 @@ final class GridReadingJson {
 				decimal(root, "co2Intensity"),
 				quality(root),
 				estimated.booleanValue(),
-				instant(root, "storedAt"));
+				instant(root, "storedAt"),
+				mix(root));
+	}
+
+	/** {@code consumption} and the {@code production} object; an absent or null {@code production} knows nothing. */
+	private static GridMix mix(JsonNode root) {
+		JsonNode production = root.path("production");
+		if (!production.isMissingNode() && !production.isNull() && !production.isObject()) {
+			throw new IllegalArgumentException("production is not an object");
+		}
+		return new GridMix(
+				integer(root, "consumption"),
+				integer(production, "nuclear"),
+				integer(production, "gas"),
+				integer(production, "coal"),
+				integer(production, "oil"),
+				integer(production, "thermal"),
+				integer(production, "wind"),
+				integer(production, "solar"),
+				integer(production, "hydro"),
+				integer(production, "bioenergy"));
+	}
+
+	/** MW are whole numbers in K2: a decimal or a string is a broken contract, not a value to round. */
+	private static Integer integer(JsonNode node, String field) {
+		JsonNode value = node.path(field);
+		if (value.isMissingNode() || value.isNull()) {
+			return null;
+		}
+		if (!value.isIntegralNumber() || !value.canConvertToInt()) {
+			throw new IllegalArgumentException(field + " is not a whole number");
+		}
+		return value.intValue();
 	}
 
 	/** The stable {@code code} of a K2 error body, null if the body has none. */

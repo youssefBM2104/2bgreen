@@ -4,4 +4,8 @@
 |Module `automation`. Only this root package is the public API; sub-packages are internal.
 |Base package
 |`com.twobgreen.platform.automation`
+|Bean references
+|* `c.t.p.d.InAppNotifications` (in Delivery) -- The in-app channel: what a user finds in their notification box. Each call stores one notification, which is also its log. A call joins the transaction of its caller, so the notification exists exactly when the caller's own change does.
+* `c.t.p.d.WebhookCalls` (in Delivery) -- The HTTP channel: calls the URL of a webhook and logs every attempt (U9).
+* `c.t.p.a.GridIntensity` (in Advisory) -- What other modules may read of the grid through `advisory`, which owns the client of grid-intelligence (F4). The public API of the DevOps (U7, module `automation`) is built on it.
 |===

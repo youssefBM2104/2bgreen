@@ -191,8 +191,8 @@ Carbon-intensity API (U7), for scripts and CI pipelines. Contract: `docs/api/pub
 | `GET /api/v1/public/intensity/latest[?scope=]` | Latest reading: `co2Intensity` (gCO2eq/kWh, `null` if unknown), `observedAt`, `quality`, `estimated`, `trafficLight` (same colour as the citizen light), `stale` (older than 2 h), `storedAt` |
 | `GET /api/v1/public/intensity?from=&to=[&scope=]` | `items` with `observedAt`, `co2Intensity`, `quality`, `estimated`, 30-min grain, `from` included, `to` excluded, **7 days at most** |
 
-`scope` is `national` (default) or `region:<INSEE code>` (`region:76`); regions have no CO2 until the regional
-estimate (G7), so `co2Intensity` is `null` there. Errors: `400 INVALID_PARAMETER`, `404 NO_DATA` (latest only),
+`scope` is `national` (default) or `region:<INSEE code>` (`region:76`); a region's CO2 is an estimate from its
+production mix (G7, `docs/data/regional-co2.md`), with `estimated: true`. Errors: `400 INVALID_PARAMETER`, `404 NO_DATA` (latest only),
 `503 GRID_UNAVAILABLE`, plus the key and quota errors above. Every call that passes the key check counts against the
 quota, `400` and `503` included. Try it with a key created on `/devops/cles`:
 
@@ -203,6 +203,39 @@ curl -s -H "X-API-Key: $TWOBGREEN_API_KEY" \
   "http://localhost:8080/api/v1/public/intensity?from=2026-11-09T00:00:00Z&to=2026-11-10T00:00:00Z"
 curl -si http://localhost:8080/api/v1/public/intensity/latest   # 401 API_KEY_REQUIRED
 ```
+
+Regional dashboard (U11), the page of the regional official (`/elu`). The region is the `region_code` claim of the
+token: a Keycloak user attribute that only an administrator can set (see "Keycloak" below). There is no parameter, so an
+official sees their own region and no other.
+
+| Endpoint | Role | What it returns |
+|---|---|---|
+| `GET /api/v1/regional/dashboard` | `regional_official` | `region` (`code`, `name`), `regional` (latest reading of the region), `national` (the nation in the same half hour, `null` if it has none), `maxAge` |
+
+Each reading has `observedAt`, `storedAt`, `quality`, `consumption`, `production` (`nuclear`, `thermal`, `wind`,
+`solar`, `hydro`, `bioenergy`, MW), `totalProduction`, `coverageRate` (production / consumption, %), `balance`
+(`IMPORTING`, `EXPORTING`, `BALANCED`), `renewableShare` (%), `co2Intensity` and `co2Estimated`. `regional` also has
+`stale`. A missing value is `null`, never 0, and so is every figure built on it.
+
+- **The nation at the same time, not its latest reading.** Regional data comes hours later than national, so the latest
+  national reading would describe another moment. `national` is the half hour of the regional reading, from the merged
+  view (K2 range, 30-min average); the regional reading is a quarter-hour.
+- **`thermal` is all fossil production.** Regional data has one aggregate; for the nation it is gas + coal + oil, so
+  both columns show the same sources.
+- **The total needs all six sources.** With one missing, `totalProduction`, `coverageRate`, `balance` and
+  `renewableShare` are `null`: a total without it would be too small. Pumping and batteries are not production (as
+  in G7).
+- **Renewable share** = wind + solar + hydro + bioenergy over production. Regional hydro includes the turbines of
+  pumped storage, which the data cannot separate.
+- **Freshness has its own limit**, `regional.dashboard.max-age` (`PT4H`): ODRÉ publishes regional data 1 to 2 hours
+  late and the regional poll runs hourly, so 3 hours behind is normal. Older, the reading is still shown, with
+  `stale: true` and its time.
+- **The regional CO2 is always an estimate** (G7, production-based: it ignores imports). The page labels it "estimée"
+  and links to `docs/data/regional-co2.md`.
+
+Errors are Problem Details with a `code`: `403` `REGION_NOT_ASSIGNED` (the token has no `region_code`, or one that
+is not among the 12 regions), `404` `NO_DATA` (no reading for the region yet), `503` `GRID_UNAVAILABLE`. Another role
+gets a plain `403`.
 
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
 (poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):
@@ -265,14 +298,18 @@ of the TimescaleDB container:
 
 ## Keycloak: realm `2bgreen`
 
-| Username | Password | Realm role |
-|---|---|---|
-| `citizen` | `citizen` | `citizen` |
-| `devops` | `devops` | `devops` |
-| `official` | `official` | `regional_official` |
+| Username | Password | Realm role | `region_code` |
+|---|---|---|---|
+| `citizen` | `citizen` | `citizen` | |
+| `devops` | `devops` | `devops` | |
+| `official` | `official` | `regional_official` | `93` (Provence-Alpes-Côte d'Azur) |
 
 - Angular client: `2bgreen-frontend` (public client, authorization code flow with PKCE,
   redirect URI `http://localhost:4200/*`).
+- **Region of an official (U11):** the user attribute `region_code` is declared in the realm's user profile, with
+  the 12 INSEE codes of `eco2mix-regional-tr` as the only allowed values. Users can see it, only an administrator can
+  change it: the account page refuses an edit (`error-user-attribute-read-only`). The client mapper `region_code` puts
+  it in the access token. To attach another official: admin console > Users > the user > Attributes.
 - The platform is a resource server: it validates tokens issued by
   `http://localhost:8180/realms/2bgreen` and checks the realm roles.
 - Account page to test a login: http://localhost:8180/realms/2bgreen/account
