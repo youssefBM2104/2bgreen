@@ -1,0 +1,95 @@
+.card {
+  margin-bottom: 16px;
+  padding: 16px 24px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+}
+
+h2 {
+  font: var(--mat-sys-title-medium);
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.secret {
+  border-color: var(--mat-sys-primary);
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.key code {
+  display: block;
+  padding: 12px;
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font-size: 1rem;
+  user-select: all;
+}
+
+.actions,
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.problem {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.keys {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.keys li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.about {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 220px;
+}
+
+.name {
+  font: var(--mat-sys-body-large);
+}
+
+.dates {
+  flex-basis: 100%;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.usage {
+  font-variant-numeric: tabular-nums;
+}
+
+.danger {
+  --mat-button-filled-container-color: var(--mat-sys-error);
+  --mat-button-filled-label-text-color: var(--mat-sys-on-error);
+}
