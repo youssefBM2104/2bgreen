@@ -1,5 +1,8 @@
 name: 2bgreen
 
+# One command runs everything: `docker compose up -d --build` (first build takes a few minutes).
+# The three infrastructure services can also be started alone (`docker compose up -d timescaledb kafka keycloak`)
+# while the apps run from the IDE or with `./mvnw spring-boot:run`: the ports below are the same in both modes.
 services:
   timescaledb:
     image: timescale/timescaledb:2.18.2-pg17
@@ -15,6 +18,12 @@ services:
     volumes:
       - timescale-data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # The init script restarts the server once on a first start: ask the real database, as the admin user
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d 2bgreen -h 127.0.0.1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   kafka:
     image: apache/kafka:4.0.0
@@ -36,6 +45,12 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1" ]
+      interval: 10s
+      timeout: 15s
+      retries: 12
+      start_period: 15s
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.3.0
@@ -46,9 +61,108 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # The browser reaches Keycloak at localhost:8180, so every token carries this issuer. Fixed here so it never
+      # depends on the address a request came from (platform reads its keys through keycloak:8080 instead).
+      KC_HOSTNAME: http://localhost:8180
+      KC_HEALTH_ENABLED: "true"
     volumes:
       - keycloak-data:/opt/keycloak/data
       - ./infra/keycloak/2bgreen-realm.json:/opt/keycloak/data/import/2bgreen-realm.json:ro
+    healthcheck:
+      # No curl in this image: a plain HTTP request over bash, on the management port (9000)
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  # Speed layer: polls ODRÉ, publishes on Kafka, stores in speed_snapshot, and serves the read API (K2).
+  # Internal API without authentication: its port is published for local checks only.
+  grid-intelligence:
+    build: ./grid-intelligence
+    container_name: 2bgreen-grid-intelligence
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: poller,stream
+      SPRING_DATASOURCE_URL: jdbc:postgresql://timescaledb:5432/2bgreen
+      DB_PASSWORD: ${GRID_APP_PASSWORD:-grid_dev}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      LOGGING_LEVEL_ORG_APACHE_KAFKA: WARN
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fs http://localhost:8081/actuator/health > /dev/null" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # Batch layer (daily resync of the consolidated data). Optional: `docker compose --profile batch up -d`.
+  # The first run loads the whole history (about 257,000 rows, 17 ODRÉ calls, once).
+  grid-batch:
+    profiles: [ batch ]
+    build: ./grid-intelligence
+    container_name: 2bgreen-grid-batch
+    environment:
+      SPRING_PROFILES_ACTIVE: batch
+      SPRING_DATASOURCE_URL: jdbc:postgresql://timescaledb:5432/2bgreen
+      DB_PASSWORD: ${GRID_APP_PASSWORD:-grid_dev}
+      # No messages are sent, but the app declares its topics at startup on every profile
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      SERVER_PORT: "8082"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  platform:
+    build: ./platform
+    container_name: 2bgreen-platform
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://timescaledb:5432/2bgreen
+      DB_PASSWORD: ${PLATFORM_APP_PASSWORD:-platform_dev}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      GRID_CLIENT_BASE_URL: http://grid-intelligence:8081
+      # The token's issuer is the browser's address (issuer-uri, unchanged). Its keys are read on the internal one:
+      # with both set, Spring validates `iss` against the first and makes no discovery call.
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/2bgreen/protocol/openid-connect/certs
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -fs http://localhost:8080/actuator/health > /dev/null" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # Static files behind nginx. The browser calls platform (8080) and Keycloak (8180) on localhost, so the port
+  # of this one must stay 4200: the realm client and the CORS rule of platform expect that origin.
+  frontend:
+    build: ./frontend
+    container_name: 2bgreen-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      platform:
+        condition: service_healthy
+
 volumes:
   timescale-data:
   kafka-data:
