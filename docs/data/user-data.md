@@ -121,7 +121,7 @@ The schema is built by the Flyway migrations of `platform` (`platform/src/main/r
   - The optional deadline of a usage (U4) is a time of day in Paris time, `finish_before`: a stored usage recurs, so it cannot be a date. *To confirm with U4.*
   - A usage log entry copies the label of its usage instead of pointing at it, so deleting a usage keeps the log.
   - The values of `state` in row 12 are set by P8: `ARMED` (the next snapshot that meets the condition notifies) and `FIRED` (the owner was told, nothing more until the condition stops being met). `last_crossing_at` is the `observedAt` of the last snapshot that notified, and `last_observed_at` the one of the last snapshot evaluated, which is how a replayed Kafka event is recognised.
-- **Not in the schema:** the limits per user (5 rules in U2, 10 webhooks in U9, 5 active keys in U10) are for the services, and the retention purges have their queries in the repositories but no scheduled job yet.
+- **Not in the schema:** the limits per user are for the services (5 rules: done in U2 by `ManageAlertRules`, with a lock per user so two requests at once cannot both pass; 10 webhooks in U9 and 5 active keys in U10: not built), and the retention purges have their queries in the repositories but no scheduled job yet.
 
 ## Open questions for the review
 

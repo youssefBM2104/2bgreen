@@ -87,6 +87,15 @@ class TrafficLightControllerTests {
 	}
 
 	@Test
+	void limitsBehindTheColoursAreThoseOfTheConfiguration() throws Exception {
+		mvc.perform(get(LATEST + "/limits").with(tokenWithRole("citizen")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.greenBelow").value(20))
+				.andExpect(jsonPath("$.amberBelow").value(40));
+		mvc.perform(get(LATEST + "/limits").with(tokenWithRole("devops"))).andExpect(status().isForbidden());
+	}
+
+	@Test
 	void anOldReadingIsNotPresentedAsCurrent() throws Exception {
 		Instant observedAt = Instant.now().minus(Duration.ofHours(3));
 		when(readings.latestNational()).thenReturn(Optional.of(reading(new BigDecimal("10"), observedAt)));
