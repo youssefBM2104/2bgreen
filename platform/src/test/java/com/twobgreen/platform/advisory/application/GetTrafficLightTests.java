@@ -8,10 +8,14 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 
+import com.twobgreen.platform.advisory.GridScope;
+import com.twobgreen.platform.advisory.GridUnavailableException;
 import com.twobgreen.platform.advisory.domain.GridQuality;
 import com.twobgreen.platform.advisory.domain.GridReading;
 import com.twobgreen.platform.advisory.domain.TrafficLight;
@@ -22,7 +26,20 @@ class GetTrafficLightTests {
 
 	private static final Instant NOW = Instant.parse("2026-11-04T12:00:00Z");
 
-	private static GetTrafficLight useCase(GridReadings readings) {
+	private static GetTrafficLight useCase(Supplier<Optional<GridReading>> latestNational) {
+		GridReadings readings = new GridReadings() {
+
+			@Override
+			public Optional<GridReading> latest(GridScope scope) {
+				assertThat(scope).isEqualTo(GridScope.NATIONAL);
+				return latestNational.get();
+			}
+
+			@Override
+			public List<GridReading> between(GridScope scope, Instant from, Instant to) {
+				throw new UnsupportedOperationException();
+			}
+		};
 		return new GetTrafficLight(readings,
 				new TrafficLightPolicy(new BigDecimal("20"), new BigDecimal("40"), Duration.ofHours(2)),
 				Clock.fixed(NOW, ZoneOffset.UTC));
@@ -45,7 +62,7 @@ class GetTrafficLightTests {
 
 	@Test
 	void anUnavailableSourceGoesToTheCaller() {
-		GridReadings down = () -> {
+		Supplier<Optional<GridReading>> down = () -> {
 			throw new GridUnavailableException("down");
 		};
 

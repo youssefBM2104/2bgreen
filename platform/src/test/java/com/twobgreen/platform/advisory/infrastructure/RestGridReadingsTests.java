@@ -10,6 +10,7 @@ import java.net.ServerSocket;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -17,7 +18,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import com.twobgreen.platform.advisory.application.GridUnavailableException;
+import com.twobgreen.platform.advisory.GridScope;
+import com.twobgreen.platform.advisory.GridUnavailableException;
 import com.twobgreen.platform.advisory.domain.GridQuality;
 import com.twobgreen.platform.advisory.domain.GridReading;
 
@@ -151,6 +153,78 @@ class RestGridReadingsTests {
 		server.reply(200, body);
 
 		assertUnavailable(readings, "unreadable");
+	}
+
+	@Test
+	void latestOfARegionCallsItsFrozenPath() {
+		server.reply(200, K2Examples.read("regions-latest-draft.json"));
+
+		assertThat(readings.latest(new GridScope("region:76"))).get()
+				.extracting(GridReading::scope, GridReading::co2Intensity)
+				.containsExactly("region:76", null);
+		assertThat(server.requests()).extracting(URI::getPath)
+				.containsExactly("/api/v1/regions/76/snapshots/latest");
+	}
+
+	@Test
+	void rangeReadsTheContractExampleInOrder() {
+		server.reply(200, K2Examples.read("range-national.json"));
+		Instant from = Instant.parse("2025-12-31T00:00:00Z");
+		Instant to = Instant.parse("2026-10-21T00:00:00Z");
+
+		List<GridReading> range = readings.between(GridScope.NATIONAL, from, to);
+
+		assertThat(range).extracting(GridReading::quality)
+				.containsExactly(GridQuality.DEFINITIVE, GridQuality.CONSOLIDATED, GridQuality.PROVISIONAL);
+		assertThat(range.getFirst().co2Intensity()).isEqualByComparingTo("41");
+		assertThat(server.requests()).singleElement().satisfies(uri -> {
+			assertThat(uri.getPath()).isEqualTo("/api/v1/national/snapshots");
+			assertThat(uri.getQuery()).isEqualTo("from=2025-12-31T00:00:00Z&to=2026-10-21T00:00:00Z");
+		});
+	}
+
+	@Test
+	void rangeOfARegionCallsItsFrozenPath() {
+		server.reply(200, K2Examples.read("range-region.json"));
+
+		assertThat(readings.between(new GridScope("region:76"), Instant.parse("2026-10-20T14:00:00Z"),
+				Instant.parse("2026-10-20T15:00:00Z"))).isNotEmpty().allSatisfy(reading -> {
+					assertThat(reading.scope()).isEqualTo("region:76");
+					assertThat(reading.co2Intensity()).isNull();
+				});
+		assertThat(server.requests()).extracting(URI::getPath).containsExactly("/api/v1/regions/76/snapshots");
+	}
+
+	@Test
+	void anEmptyRangeIsNoReading() {
+		server.reply(200, "{\"scope\": \"national\", \"from\": \"2026-10-20T00:00:00Z\", "
+				+ "\"to\": \"2026-10-21T00:00:00Z\", \"items\": []}");
+
+		assertThat(readings.between(GridScope.NATIONAL, Instant.parse("2026-10-20T00:00:00Z"),
+				Instant.parse("2026-10-21T00:00:00Z"))).isEmpty();
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "error-range-too-large.json:400", "error-no-data.json:404", "error-unavailable.json:503" })
+	void aRangeRefusedByK2IsUnavailableWithItsCode(String example) {
+		String[] parts = example.split(":");
+		server.reply(Integer.parseInt(parts[1]), K2Examples.read(parts[0]));
+
+		assertThatThrownBy(() -> readings.between(GridScope.NATIONAL, Instant.parse("2026-10-20T00:00:00Z"),
+				Instant.parse("2026-10-21T00:00:00Z")))
+				.isInstanceOf(GridUnavailableException.class)
+				.hasMessageContaining("HTTP " + parts[1] + " ");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "{}", "{\"items\": {}}", "{\"items\": [1]}", "{\"items\": [{\"schemaVersion\": 1}]}" })
+	void anUnreadableRangeIsUnavailable(String body) {
+		server.reply(200, body);
+
+		assertThatThrownBy(() -> readings.between(GridScope.NATIONAL, Instant.parse("2026-10-20T00:00:00Z"),
+				Instant.parse("2026-10-21T00:00:00Z")))
+				.isInstanceOf(GridUnavailableException.class)
+				.hasMessageContaining("unreadable");
 	}
 
 	private static void assertUnavailable(RestGridReadings readings, String message) {

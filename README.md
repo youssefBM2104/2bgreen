@@ -161,7 +161,7 @@ docker exec 2bgreen-timescaledb psql -U postgres -d 2bgreen -c \
 ```
 
 API keys (U10). A DevOps user creates keys from the page "Mes clés d'API" (`/devops/cles`); scripts send one in the
-`X-API-Key` header to call `/api/v1/public/**` (the public API itself is U7). Only the SHA-256 of a key is stored,
+`X-API-Key` header to call `/api/v1/public/**` (the carbon-intensity API, U7, below). Only the SHA-256 of a key is stored,
 the key is shown once at creation (ADR-005: `docs/adr/0005-api-key-authentication.md`).
 
 | Endpoint | Auth | What it does |
@@ -181,6 +181,27 @@ refused call is not counted. Check what is stored (the key itself appears nowher
 docker exec 2bgreen-timescaledb psql -U postgres -d 2bgreen -c \
   "SELECT id, user_id, name, prefix, key_hash, revoked_at, last_used_at FROM platform.automation_api_key;
    SELECT * FROM platform.automation_api_key_daily_counter ORDER BY day DESC LIMIT 5;"
+```
+
+Carbon-intensity API (U7), for scripts and CI pipelines. Contract: `docs/api/public-openapi.yaml`, examples in
+`docs/api/public-examples/`. `platform` reads the data from `grid-intelligence` (K2), which stays internal.
+
+| Endpoint | What it returns |
+|---|---|
+| `GET /api/v1/public/intensity/latest[?scope=]` | Latest reading: `co2Intensity` (gCO2eq/kWh, `null` if unknown), `observedAt`, `quality`, `estimated`, `trafficLight` (same colour as the citizen light), `stale` (older than 2 h), `storedAt` |
+| `GET /api/v1/public/intensity?from=&to=[&scope=]` | `items` with `observedAt`, `co2Intensity`, `quality`, `estimated`, 30-min grain, `from` included, `to` excluded, **7 days at most** |
+
+`scope` is `national` (default) or `region:<INSEE code>` (`region:76`); regions have no CO2 until the regional
+estimate (G7), so `co2Intensity` is `null` there. Errors: `400 INVALID_PARAMETER`, `404 NO_DATA` (latest only),
+`503 GRID_UNAVAILABLE`, plus the key and quota errors above. Every call that passes the key check counts against the
+quota, `400` and `503` included. Try it with a key created on `/devops/cles`:
+
+```bash
+export TWOBGREEN_API_KEY=2bg_...
+curl -s -H "X-API-Key: $TWOBGREEN_API_KEY" http://localhost:8080/api/v1/public/intensity/latest
+curl -s -H "X-API-Key: $TWOBGREEN_API_KEY" \
+  "http://localhost:8080/api/v1/public/intensity?from=2026-11-09T00:00:00Z&to=2026-11-10T00:00:00Z"
+curl -si http://localhost:8080/api/v1/public/intensity/latest   # 401 API_KEY_REQUIRED
 ```
 
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer

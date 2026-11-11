@@ -40,7 +40,7 @@ import com.twobgreen.platform.automation.domain.ApiKeyRepository;
 
 /**
  * The security chain of {@code /api/v1/public/**} (U10): key in {@code X-API-Key}, quota per UTC day. Exercised on a
- * test endpoint, the public API of U7 does not exist yet.
+ * test endpoint, so that it does not depend on the grid data behind the real endpoints of U7.
  */
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest

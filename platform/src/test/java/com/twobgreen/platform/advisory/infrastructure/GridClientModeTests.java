@@ -7,6 +7,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import com.twobgreen.platform.advisory.GridScope;
 import com.twobgreen.platform.advisory.application.GridReadings;
 import com.twobgreen.platform.advisory.domain.GridReading;
 
@@ -40,6 +41,17 @@ class GridClientModeTests {
 					.extracting(GridReading::observedAt)
 					.isEqualTo(Instant.parse("2026-10-20T14:45:00Z"));
 		});
+	}
+
+	@Test
+	void stubHasNoRegionAndARangeOnlyAroundItsReading() {
+		StubGridReadings stub = StubGridReadings.fromContractExample();
+		Instant observedAt = Instant.parse("2026-10-20T14:45:00Z");
+
+		assertThat(stub.latest(new GridScope("region:76"))).isEmpty();
+		assertThat(stub.between(GridScope.NATIONAL, observedAt, observedAt.plusSeconds(1))).hasSize(1);
+		assertThat(stub.between(GridScope.NATIONAL, observedAt.minusSeconds(1), observedAt)).isEmpty();
+		assertThat(stub.between(new GridScope("region:76"), observedAt, observedAt.plusSeconds(1))).isEmpty();
 	}
 
 	@Test

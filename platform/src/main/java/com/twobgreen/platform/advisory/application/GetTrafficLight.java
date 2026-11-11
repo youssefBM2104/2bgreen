@@ -3,6 +3,7 @@ package com.twobgreen.platform.advisory.application;
 import java.time.Clock;
 import java.util.Optional;
 
+import com.twobgreen.platform.advisory.GridUnavailableException;
 import com.twobgreen.platform.advisory.domain.TrafficLight;
 import com.twobgreen.platform.advisory.domain.TrafficLightPolicy;
 

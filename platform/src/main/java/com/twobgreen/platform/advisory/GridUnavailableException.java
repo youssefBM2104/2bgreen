@@ -1,4 +1,4 @@
-package com.twobgreen.platform.advisory.application;
+package com.twobgreen.platform.advisory;
 
 /** The source of grid data cannot answer: unreachable, timeout, server error or unreadable response. */
 public class GridUnavailableException extends RuntimeException {

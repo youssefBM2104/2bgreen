@@ -1,0 +1,25 @@
+{
+  "scope": "national",
+  "from": "2026-10-20T13:00:00Z",
+  "to": "2026-10-20T14:30:00Z",
+  "items": [
+    {
+      "observedAt": "2026-10-20T13:00:00Z",
+      "co2Intensity": 27,
+      "quality": "PROVISIONAL",
+      "estimated": false
+    },
+    {
+      "observedAt": "2026-10-20T13:30:00Z",
+      "co2Intensity": 28.5,
+      "quality": "PROVISIONAL",
+      "estimated": false
+    },
+    {
+      "observedAt": "2026-10-20T14:00:00Z",
+      "co2Intensity": null,
+      "quality": "PROVISIONAL",
+      "estimated": false
+    }
+  ]
+}

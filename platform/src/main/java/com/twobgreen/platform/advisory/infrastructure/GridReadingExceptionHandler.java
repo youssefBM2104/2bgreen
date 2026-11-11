@@ -7,7 +7,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.twobgreen.platform.advisory.application.GridUnavailableException;
+import com.twobgreen.platform.advisory.GridUnavailableException;
 
 /**
  * Errors of {@link TrafficLightController} as RFC 7807 Problem Details, with a stable {@code code} like the read API.

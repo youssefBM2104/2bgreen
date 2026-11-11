@@ -3,6 +3,8 @@ package com.twobgreen.platform.advisory.infrastructure;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -28,7 +30,30 @@ final class GridReadingJson {
 	 * @throws IllegalArgumentException if the body does not respect K2
 	 */
 	static GridReading parse(String json) {
-		JsonNode root = tree(json);
+		return reading(tree(json));
+	}
+
+	/**
+	 * The {@code items} of a K2 range body ({@code SnapshotRange}), in the order received.
+	 *
+	 * @throws IllegalArgumentException if the body does not respect K2
+	 */
+	static List<GridReading> parseRange(String json) {
+		JsonNode items = tree(json).path("items");
+		if (!items.isArray()) {
+			throw new IllegalArgumentException("items is required");
+		}
+		List<GridReading> readings = new ArrayList<>(items.size());
+		for (JsonNode item : items) {
+			if (!item.isObject()) {
+				throw new IllegalArgumentException("an item is not a JSON object");
+			}
+			readings.add(reading(item));
+		}
+		return readings;
+	}
+
+	private static GridReading reading(JsonNode root) {
 		JsonNode version = root.path("schemaVersion");
 		if (!version.isIntegralNumber() || version.intValue() != SCHEMA_VERSION) {
 			throw new IllegalArgumentException("unsupported schemaVersion");

@@ -6,19 +6,32 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.twobgreen.platform.advisory.GridIntensity;
 import com.twobgreen.platform.advisory.application.GetTrafficLight;
 import com.twobgreen.platform.advisory.application.GridReadings;
+import com.twobgreen.platform.advisory.application.ReadGridIntensity;
 import com.twobgreen.platform.advisory.domain.TrafficLightPolicy;
 
-/** Creates the use case from the {@code advisory.traffic-light.*} settings. */
+/**
+ * Creates the use cases from the {@code advisory.traffic-light.*} settings: the citizen traffic light, and
+ * {@link GridIntensity} for the other modules. Both share one policy, so they always agree on a colour.
+ */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(TrafficLightProperties.class)
 class TrafficLightConfig {
 
 	@Bean
-	GetTrafficLight getTrafficLight(GridReadings readings, TrafficLightProperties properties) {
-		TrafficLightPolicy policy = new TrafficLightPolicy(properties.greenBelow(), properties.amberBelow(),
-				properties.maxAge());
+	TrafficLightPolicy trafficLightPolicy(TrafficLightProperties properties) {
+		return new TrafficLightPolicy(properties.greenBelow(), properties.amberBelow(), properties.maxAge());
+	}
+
+	@Bean
+	GetTrafficLight getTrafficLight(GridReadings readings, TrafficLightPolicy policy) {
 		return new GetTrafficLight(readings, policy, Clock.systemUTC());
+	}
+
+	@Bean
+	GridIntensity gridIntensity(GridReadings readings, TrafficLightPolicy policy) {
+		return new ReadGridIntensity(readings, policy, Clock.systemUTC());
 	}
 }

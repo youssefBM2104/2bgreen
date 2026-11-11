@@ -1,0 +1,8 @@
+{
+  "type": "about:blank",
+  "title": "Grid data unavailable",
+  "status": 503,
+  "detail": "Grid data cannot be read right now. Try again later.",
+  "instance": "/api/v1/public/intensity/latest",
+  "code": "GRID_UNAVAILABLE"
+}
