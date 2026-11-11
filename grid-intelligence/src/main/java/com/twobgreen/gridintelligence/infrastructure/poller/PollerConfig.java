@@ -12,6 +12,7 @@ import com.twobgreen.gridintelligence.application.PollRegionalReadings;
 import com.twobgreen.gridintelligence.application.RegionalOdreGateway;
 import com.twobgreen.gridintelligence.application.SnapshotPublisher;
 import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
+import com.twobgreen.gridintelligence.domain.RegionalCo2Estimator;
 
 /**
  * The poller, only started with the {@code poller} profile ({@code --spring.profiles.active=poller,stream} runs the
@@ -37,8 +38,8 @@ class PollerConfig {
 	@Bean
 	PollRegionalReadings pollRegionalReadings(RegionalOdreGateway odre, SnapshotPublisher publisher,
 			SpeedSnapshotRepository stored, PollerProperties properties) {
-		return new PollRegionalReadings(odre, publisher, stored, properties.regionalOverlap(),
-				properties.firstStart());
+		return new PollRegionalReadings(odre, publisher, stored, new RegionalCo2Estimator(),
+				properties.regionalOverlap(), properties.firstStart());
 	}
 
 	@Bean

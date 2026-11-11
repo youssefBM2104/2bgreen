@@ -14,7 +14,7 @@ data through this one, so the two never share a URL.
 |---|---|---|
 | `GET /api/v1/national/snapshots/latest` | **frozen** (slice 1, built by D8) | Latest national snapshot with measures. A forecast-only row is never returned. |
 | `GET /api/v1/national/snapshots?from=&to=` | **frozen** (G8) | Snapshots in a range, 30-min grain, from the merged view. |
-| `GET /api/v1/regions/{code}/snapshots/latest` | **frozen** (G8) | Latest snapshot of a region. No CO2 until the regional estimate (G7). |
+| `GET /api/v1/regions/{code}/snapshots/latest` | **frozen** (G8) | Latest snapshot of a region. CO2 is an estimate (G7), `estimated: true`. |
 | `GET /api/v1/regions/{code}/snapshots?from=&to=` | **frozen** (G8) | Snapshots of a region in a range. Provisional only until the regional batch (G6). |
 
 The `scope` string (`national`, `region:<code>`) is the Kafka key and the `scope` field of the body, as in K1. It is not the URL syntax: the URL names the resource.
@@ -27,6 +27,7 @@ The `scope` string (`national`, `region:<code>`) is the Kafka key and the `scope
 - `quality` is `PROVISIONAL`, `CONSOLIDATED` or `DEFINITIVE`. `latest` is practically always `PROVISIONAL`. A range can mix the three.
 - `storedAt` is the time the row was written. It gives the freshness of the data.
 - `latest` reads `speed_snapshot` (15 min, freshest). Ranges read the merged view `grid.merged_snapshot` (G4).
+- Regional `co2Intensity` is estimated from the production mix (G7, [`../data/regional-co2.md`](../data/regional-co2.md)): direct emissions divided by the region's own production, imports not counted, so it says what the region produces, not what it consumes. `estimated` is `true` exactly when the value is an estimate; a regional row with a production source missing has no CO2 and `estimated: false`.
 
 ## Errors
 
@@ -51,8 +52,9 @@ Used as fixtures by the frontend, by the stub in `platform` (F4) and by the API 
 | `examples/latest-national.json` | Normal data. Values of the fixture `national-tr-measured.json`. |
 | `examples/latest-national-missing-values.json` | Some values `null`, some absent, fossil aggregate in `thermal`. |
 | `examples/range-national.json` | One row per quality (abridged, rows are not contiguous). |
-| `examples/range-region.json` | Two periods of a region. No CO2, no forecasts. |
-| `examples/regions-latest-draft.json` | Latest of a region. No CO2, no forecasts, `estimated: true` (the shape once G7 exists). |
+| `examples/range-region.json` | Two periods of a region, no forecasts. Hydro is missing, so no CO2 estimate (`co2Intensity: null`, `estimated: false`). |
+| `examples/regions-latest.json` | Latest of a region. Mix of the fixture `regional-tr-measured.json`, estimated CO2 (`87`, `estimated: true`), no forecasts. |
+| `examples/regions-latest-draft.json` | Latest of a region with hydro missing: no CO2 estimate, `estimated: false`. Name kept from before G7, because tests load it. |
 | `examples/error-no-data.json` | `404 NO_DATA`. |
 | `examples/error-scope-unknown.json` | `404 SCOPE_UNKNOWN` (regional paths). |
 | `examples/error-invalid-parameter.json` | `400 INVALID_PARAMETER`. |
