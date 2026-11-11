@@ -131,6 +131,29 @@ docker exec 2bgreen-timescaledb psql -U postgres -d 2bgreen -c \
    SELECT id, message, created_at, read_at FROM platform.delivery_notification ORDER BY id DESC LIMIT 5;"
 ```
 
+API keys (U10). A DevOps user creates keys from the page "Mes clés d'API" (`/devops/cles`); scripts send one in the
+`X-API-Key` header to call `/api/v1/public/**` (the public API itself is U7). Only the SHA-256 of a key is stored,
+the key is shown once at creation (ADR-005: `docs/adr/0005-api-key-authentication.md`).
+
+| Endpoint | Auth | What it does |
+|---|---|---|
+| `GET /api/v1/automation/api-keys` | JWT, `devops` | The caller's active keys: `id`, `name`, `prefix`, `createdAt`, `lastUsedAt`, `callsToday`, `dailyQuota` |
+| `POST /api/v1/automation/api-keys` | JWT, `devops` | Body `{"name": "CI"}`. `201` with the same fields plus `key`, the only time it is given (`Cache-Control: no-store`) |
+| `DELETE /api/v1/automation/api-keys/{id}` | JWT, `devops` | Revokes the key, `204`. The next call with it gets a `401` |
+| `/api/v1/public/**` | `X-API-Key` | Separate security chain: no JWT, no CORS. Each accepted call answers `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` (epoch seconds of the next 00:00 UTC) |
+
+Errors: `400` `INVALID_API_KEY_REQUEST` (name of 1 to 60 characters), `409` `API_KEY_LIMIT_REACHED` (5 active keys
+per user), `404` `API_KEY_NOT_FOUND` (also for another user's key). On the public paths: `401` `API_KEY_REQUIRED` (no
+header) or `INVALID_API_KEY` (unknown or revoked, the same answer for both), `429` `QUOTA_EXCEEDED` with
+`Retry-After` in seconds. The quota is `automation.api-keys.daily-quota` (1,000 calls per key and per UTC day); a
+refused call is not counted. Check what is stored (the key itself appears nowhere):
+
+```bash
+docker exec 2bgreen-timescaledb psql -U postgres -d 2bgreen -c \
+  "SELECT id, user_id, name, prefix, key_hash, revoked_at, last_used_at FROM platform.automation_api_key;
+   SELECT * FROM platform.automation_api_key_daily_counter ORDER BY day DESC LIMIT 5;"
+```
+
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
 (poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):
 

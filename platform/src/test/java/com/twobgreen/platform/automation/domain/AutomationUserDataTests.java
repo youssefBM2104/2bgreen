@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
@@ -30,6 +31,8 @@ class AutomationUserDataTests {
 	private final String user = UUID.randomUUID().toString();
 
 	private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
+
+	private static final int LIMIT = 1000;
 
 	@Autowired
 	private AlertRuleRepository rules;
@@ -107,9 +110,9 @@ class AutomationUserDataTests {
 		ApiKey key = keys.save(key(hash()));
 
 		assertThat(keys.callsOn(key.id(), TODAY)).isEmpty();
-		assertThat(keys.countCall(key.id(), TODAY)).isEqualTo(1);
-		assertThat(keys.countCall(key.id(), TODAY)).isEqualTo(2);
-		assertThat(keys.countCall(key.id(), TODAY.plusDays(1))).isEqualTo(1);
+		assertThat(keys.countCall(key.id(), TODAY, LIMIT)).contains(1);
+		assertThat(keys.countCall(key.id(), TODAY, LIMIT)).contains(2);
+		assertThat(keys.countCall(key.id(), TODAY.plusDays(1), LIMIT)).contains(1);
 		assertThat(keys.callsOn(key.id(), TODAY)).contains(2);
 	}
 
@@ -118,16 +121,42 @@ class AutomationUserDataTests {
 		ApiKey key = keys.save(key(hash()));
 
 		CompletableFuture.allOf(IntStream.range(0, 40)
-				.mapToObj(i -> CompletableFuture.runAsync(() -> keys.countCall(key.id(), TODAY)))
+				.mapToObj(i -> CompletableFuture.runAsync(() -> keys.countCall(key.id(), TODAY, LIMIT)))
 				.toArray(CompletableFuture[]::new)).join();
 
 		assertThat(keys.callsOn(key.id(), TODAY)).contains(40);
 	}
 
 	@Test
+	void concurrentCallsCannotPassTheLimitTogether() {
+		ApiKey key = keys.save(key(hash()));
+
+		long accepted = IntStream.range(0, 40)
+				.mapToObj(i -> CompletableFuture.supplyAsync(() -> keys.countCall(key.id(), TODAY, 25)))
+				.toList().stream()
+				.map(CompletableFuture::join)
+				.filter(Optional::isPresent)
+				.count();
+
+		assertThat(accepted).isEqualTo(25);
+		assertThat(keys.callsOn(key.id(), TODAY)).contains(25);
+		assertThat(keys.countCall(key.id(), TODAY, 25)).isEmpty();
+		assertThat(keys.countCall(key.id(), TODAY, 26)).contains(26);
+	}
+
+	@Test
+	void lastUseIsRecorded() {
+		ApiKey key = keys.save(key(hash()));
+
+		assertThat(keys.markUsed(key.id(), NOW)).isEqualTo(1);
+
+		assertThat(keys.findById(key.id()).orElseThrow().lastUsedAt()).isEqualTo(NOW);
+	}
+
+	@Test
 	void countersGoWithTheirKey() {
 		ApiKey key = keys.save(key(hash()));
-		keys.countCall(key.id(), TODAY);
+		keys.countCall(key.id(), TODAY, LIMIT);
 
 		assertThat(keys.deleteAllOfUser(user)).isEqualTo(1);
 
@@ -139,7 +168,7 @@ class AutomationUserDataTests {
 		ApiKey valid = keys.save(key(hash()));
 		Instant longAgo = Instant.parse("2001-01-01T00:00:00Z");
 		ApiKey revoked = keys.save(new ApiKey(null, user, "old", "2bg_old", hash(), longAgo, longAgo, null));
-		keys.countCall(valid.id(), LocalDate.of(2001, 1, 1));
+		keys.countCall(valid.id(), LocalDate.of(2001, 1, 1), LIMIT);
 
 		assertThat(keys.deleteCountersBefore(LocalDate.of(2001, 1, 2))).isGreaterThanOrEqualTo(1);
 		assertThat(keys.deleteRevokedBefore(longAgo.plusSeconds(1))).isGreaterThanOrEqualTo(1);
