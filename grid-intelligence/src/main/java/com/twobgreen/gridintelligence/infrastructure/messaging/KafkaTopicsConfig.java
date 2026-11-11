@@ -29,6 +29,11 @@ class KafkaTopicsConfig {
 		return topic(Topics.SNAPSHOT_STORED);
 	}
 
+	@Bean
+	NewTopic bandChangedTopic() {
+		return topic(Topics.BAND_CHANGED);
+	}
+
 	private static NewTopic topic(String name) {
 		return TopicBuilder.name(name)
 				.partitions(PARTITIONS)

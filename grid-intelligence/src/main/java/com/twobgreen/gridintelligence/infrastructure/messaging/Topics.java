@@ -11,6 +11,9 @@ public final class Topics {
 	/** Readings saved in {@code speed_snapshot}: produced by the stream, consumed by {@code platform}. */
 	public static final String SNAPSHOT_STORED = "grid.snapshot-stored";
 
+	/** The shared CO2 band of a scope changed: produced by the stream (G9), no consumer yet (U9). */
+	public static final String BAND_CHANGED = "grid.band-changed";
+
 	private Topics() {
 	}
 }

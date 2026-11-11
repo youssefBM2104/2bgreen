@@ -5,6 +5,7 @@ import org.apache.kafka.streams.errors.StreamsUncaughtExceptionHandler.StreamThr
 import org.apache.kafka.streams.kstream.KStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -13,15 +14,20 @@ import org.springframework.kafka.config.StreamsBuilderFactoryBeanConfigurer;
 
 import com.twobgreen.gridintelligence.application.SpeedSnapshotRepository;
 import com.twobgreen.gridintelligence.application.StoreSnapshot;
+import com.twobgreen.gridintelligence.application.TrackBand;
+import com.twobgreen.gridintelligence.domain.BandPolicy;
+import com.twobgreen.gridintelligence.infrastructure.messaging.BandMessages;
 import com.twobgreen.gridintelligence.infrastructure.messaging.SnapshotMessages;
 
 /**
- * The speed layer stream, only started with the {@code stream} profile. The application id
+ * The stream, only started with the {@code stream} profile: the speed layer ({@link SnapshotTopology}) and the band
+ * per scope ({@link BandTopology}). The application id
  * ({@code application-stream.properties}) is also the consumer group, {@code grid-stream} in contract K1.
  */
 @Configuration(proxyBeanMethods = false)
 @Profile("stream")
 @EnableKafkaStreams
+@EnableConfigurationProperties(BandProperties.class)
 class SnapshotStreamConfig {
 
 	private static final Logger log = LoggerFactory.getLogger(SnapshotStreamConfig.class);
@@ -39,6 +45,22 @@ class SnapshotStreamConfig {
 	@Bean
 	KStream<String, String> snapshotStream(StreamsBuilder builder, StoreSnapshot store, SnapshotMessages messages) {
 		return SnapshotTopology.build(builder, store, messages);
+	}
+
+	@Bean
+	BandMessages bandMessages() {
+		return new BandMessages();
+	}
+
+	@Bean
+	TrackBand trackBand(BandProperties properties) {
+		return new TrackBand(new BandPolicy(properties.greenBelow(), properties.amberBelow()));
+	}
+
+	@Bean
+	KStream<String, String> bandStream(StreamsBuilder builder, TrackBand trackBand, SnapshotMessages snapshots,
+			BandMessages bands) {
+		return BandTopology.build(builder, trackBand, snapshots, bands);
 	}
 
 	/**
