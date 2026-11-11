@@ -1,0 +1,46 @@
+<button mat-icon-button type="button" [matMenuTriggerFor]="menu" [attr.aria-label]="label()">
+  <mat-icon
+    aria-hidden="true"
+    [matBadge]="unread() > 99 ? '99+' : unread()"
+    [matBadgeHidden]="unread() === 0"
+    matBadgeSize="small"
+    >notifications</mat-icon
+  >
+</button>
+
+<mat-menu #menu="matMenu" class="notification-panel" xPosition="before">
+  @if (box(); as content) {
+    @if (content.items.length === 0) {
+      <p class="empty">Aucune notification pour l'instant.</p>
+    } @else {
+      <button
+        mat-menu-item
+        type="button"
+        class="read-all"
+        [disabled]="content.unreadCount === 0"
+        (click)="readAll(); $event.stopPropagation()"
+      >
+        Tout marquer comme lu
+      </button>
+      @for (notification of content.items; track notification.id) {
+        <button
+          mat-menu-item
+          type="button"
+          class="notification"
+          [class.unread]="notification.readAt === null"
+          (click)="read(notification); $event.stopPropagation()"
+        >
+          <span class="message">{{ notification.message }}</span>
+          <span class="meta">
+            Reçue le {{ time(notification) }}
+            @if (notification.readAt === null) {
+              · non lue, cliquez pour marquer comme lue
+            }
+          </span>
+        </button>
+      }
+    }
+  } @else {
+    <p class="empty">Chargement…</p>
+  }
+</mat-menu>

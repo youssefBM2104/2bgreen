@@ -5,10 +5,18 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { AppRole } from '../../core/auth/roles';
+import { NotificationBell } from '../notifications/notification-bell';
 
 @Component({
   selector: 'app-shell',
-  imports: [MatButtonModule, MatToolbarModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [
+    MatButtonModule,
+    MatToolbarModule,
+    NotificationBell,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+  ],
   templateUrl: './shell.html',
   styleUrl: './shell.scss',
 })
@@ -26,5 +34,10 @@ export class Shell {
   /** Chacun ne voit que les espaces auxquels son rôle donne accès. */
   protected readonly links = computed(() =>
     this.allLinks.filter((link) => this.roles().includes(link.role)),
+  );
+
+  /** Comme platform : la boîte de notifications est celle des citoyens et des élus, pas des DevOps. */
+  protected readonly hasNotifications = computed(() =>
+    this.roles().some((role) => role === 'citizen' || role === 'regional_official'),
   );
 }

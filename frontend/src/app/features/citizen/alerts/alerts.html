@@ -1,0 +1,90 @@
+<a mat-button routerLink="/citoyen">← Espace citoyen</a>
+
+<h1>Mes alertes</h1>
+<p>
+  Recevez une notification quand l'intensité carbone du réseau national passe sous le seuil que vous
+  choisissez. Vous êtes prévenu au moment où le réseau passe sous le seuil, pas tant qu'il y reste.
+</p>
+
+@if (message(); as text) {
+  <p class="problem" role="alert">{{ text }}</p>
+}
+
+<section class="card" aria-labelledby="new-alert-title">
+  <h2 id="new-alert-title">Nouvelle alerte</h2>
+  @if (full()) {
+    <p class="full">
+      Vous avez atteint la limite de {{ maxAlerts }} alertes. Supprimez-en une pour en créer une
+      autre.
+    </p>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="create()">
+      <mat-form-field>
+        <mat-label>Seuil (gCO₂éq/kWh)</mat-label>
+        <input
+          matInput
+          type="number"
+          inputmode="numeric"
+          step="1"
+          [min]="min"
+          [max]="max"
+          [formControl]="threshold"
+        />
+        @if (threshold.invalid) {
+          <mat-error>Un nombre entier entre {{ min }} et {{ max }}.</mat-error>
+        }
+      </mat-form-field>
+      <button mat-flat-button type="submit" [disabled]="alerts() === null">Créer l'alerte</button>
+    </form>
+    @if (suggestions().length > 0) {
+      <p class="suggestions">
+        Seuils du feu tricolore :
+        @for (suggestion of suggestions(); track suggestion.label) {
+          <button mat-stroked-button type="button" (click)="suggest(suggestion.value)">
+            {{ suggestion.label }} : sous {{ suggestion.value }}
+          </button>
+        }
+      </p>
+    }
+  }
+</section>
+
+<section aria-labelledby="alerts-title">
+  <h2 id="alerts-title">
+    Vos alertes
+    @if (alerts(); as list) {
+      ({{ list.length }}/{{ maxAlerts }})
+    }
+  </h2>
+  @if (alerts(); as list) {
+    @if (list.length === 0) {
+      <p>Vous n'avez pas encore d'alerte.</p>
+    } @else {
+      <ul class="alerts">
+        @for (alert of list; track alert.id) {
+          <li>
+            <span class="threshold">Sous {{ alert.threshold }} gCO₂éq/kWh</span>
+            <mat-slide-toggle
+              [checked]="alert.active"
+              (change)="setActive(alert, $event.checked)"
+              [attr.aria-label]="'Alerte sous ' + alert.threshold + ' active'"
+            >
+              {{ alert.active ? 'Active' : 'En pause' }}
+            </mat-slide-toggle>
+            <button
+              mat-button
+              type="button"
+              class="remove"
+              [attr.aria-label]="'Supprimer l\'alerte sous ' + alert.threshold"
+              (click)="remove(alert)"
+            >
+              Supprimer
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  } @else if (!message()) {
+    <p>Chargement…</p>
+  }
+</section>

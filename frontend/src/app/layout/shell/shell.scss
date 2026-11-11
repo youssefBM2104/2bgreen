@@ -45,6 +45,9 @@ footer {
   color: var(--mat-sys-on-surface-variant);
 }
 
-.logout {
+.account {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
 }

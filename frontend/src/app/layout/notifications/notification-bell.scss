@@ -1,0 +1,27 @@
+// Le contenu du menu est rendu hors du composant, mais ses éléments gardent ces styles.
+.empty {
+  margin: 0;
+  padding: 12px 16px;
+}
+
+.notification {
+  height: auto;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+}
+
+.message,
+.meta {
+  display: block;
+  white-space: normal;
+}
+
+.unread .message {
+  font-weight: 500;
+}
+
+.meta {
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
