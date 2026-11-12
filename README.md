@@ -237,6 +237,38 @@ Errors are Problem Details with a `code`: `403` `REGION_NOT_ASSIGNED` (the token
 is not among the 12 regions), `404` `NO_DATA` (no reading for the region yet), `503` `GRID_UNAVAILABLE`. Another role
 gets a plain `403`.
 
+Regional targets (U13), the page "Mes objectifs" (`/elu/objectifs`). The user is the `sub` of the token and the region
+its `region_code`: an official only reaches their own targets, in their own region (a target created in another region
+is not found, `404`).
+
+| Endpoint | Role | What it does |
+|---|---|---|
+| `GET /api/v1/regional/targets` | `regional_official` | The caller's targets with `current` (`value`, `expected`, `status`, `percent`, `achieved`) and `history` (one point per day) |
+| `POST /api/v1/regional/targets` | same | Body `{"indicator": "RENEWABLE_SHARE", "referenceYear": 2025, "targetValue": 60, "deadline": "2030-12-31", "tolerance": 2}`. `201` |
+| `PUT /api/v1/regional/targets/{id}` | same | Body `{"targetValue": 70, "deadline": "2032-12-31", "tolerance": null}`: indicator and reference year cannot change |
+| `DELETE /api/v1/regional/targets/{id}` | same | `204`, history deleted with it, in-process event `TargetDeleted` for the pace alert (U16) |
+
+- **Indicators**: `RENEWABLE_SHARE` (wind + solar + hydro + bioenergy over production, %), `COVERAGE_RATE`
+  (production over consumption, %), `CONSUMPTION_DROP` (drop of the mean consumption against the reference year, %),
+  `ESTIMATED_CO2` (G7 estimate, weighted by production, gCO2eq/kWh). Ratios are taken on the totals of the period, not
+  averaged half hour by half hour. Only complete readings count (consumption and the six sources).
+- **Reference value**: the indicator over the reference year (UTC calendar year, 2013 to last year), computed once at
+  creation from the merged view (K2 range). For `CONSUMPTION_DROP` it is the mean consumption in MW
+  (`referenceConsumption`) and the trajectory starts at 0 %.
+- **Current value**: the indicator over the 12 months before today (Paris), to smooth the seasons out. A period needs a
+  complete reading for 90 % of its half hours (`regional.targets.min-coverage`), or it has no value: no row that day,
+  `REFERENCE_UNAVAILABLE` (`422`) at creation.
+- **Trajectory**: a straight line from the start value on the creation day to the target on the deadline. Status
+  `AHEAD` / `ON_TRACK` / `LATE` against it, within the tolerance in points (none = 0). Whether the indicator must go up
+  or down is read from the target (a CO2 target below its reference goes down).
+- **Progress**: share of the way covered, 0 to 100 %. A target reached is `achieved: true` at 100 %, never more.
+- **Recalculation**: every hour (`regional.targets.recalculation-interval`), one K2 range call per region with targets.
+  Each run replaces the row of the day (`UNIQUE (target_id, day)`), so the history has one row per day and follows the
+  data whenever the regional batch (G6) or the speed layer brings some: platform is not told when the batch has run.
+
+Errors: `400` `INVALID_TARGET` (the `detail` says which field), `409` `TARGET_LIMIT_REACHED` (10 targets per official),
+`422` `REFERENCE_UNAVAILABLE`, `404` `TARGET_NOT_FOUND`, `403` `REGION_NOT_ASSIGNED`, `503` `GRID_UNAVAILABLE`.
+
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
 (poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):
 
