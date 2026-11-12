@@ -3,6 +3,179 @@
 Synthesis of the architecture overview of 2026-10-14, updated with what has been built since. Each structuring choice
 has an ADR in `docs/adr/`; this page says what the system is, the ADRs say why.
 
+The architecture is shown with the [C4 model](https://c4model.com), from the outside in: system context,
+containers, components, then one dynamic view (the journey of a reading). Diagrams are Mermaid, so GitHub renders them.
+
+## C4 level 1: system context
+
+Who uses 2bGreen and which outside systems it depends on.
+
+```mermaid
+flowchart LR
+    citizen["<b>Citizen</b><br/>uses electricity when<br/>the grid is clean"]
+    devops["<b>DevOps / company</b><br/>runs jobs when the<br/>grid is clean"]
+    official["<b>Regional official</b><br/>tracks the regional<br/>transition"]
+
+    system["<b>2bGreen</b><br/>decision support on French<br/>electricity data"]
+
+    odre["<b>ODRÉ portal</b><br/>public éCO2mix data<br/>(RTE), 50,000 calls/month"]
+    idp["<b>Keycloak</b><br/>identity provider"]
+
+    citizen -->|"web app: traffic light, alerts"| system
+    official -->|"web app: dashboard, targets"| system
+    devops -->|"web app: keys, webhooks<br/>REST + API key: intensity"| system
+    system -->|"HTTPS: polls real-time data,<br/>daily history resync"| odre
+    system -->|"OIDC login (code + PKCE)"| idp
+```
+
+## C4 level 2: containers
+
+What runs, what each piece owns, and how the pieces talk. Arrows start at the caller; the label is the protocol and,
+for Kafka, the topic.
+
+```mermaid
+flowchart TB
+    user["Citizen / DevOps / Official<br/>(browser)"]
+    script["DevOps script / CI<br/>(curl, pipeline)"]
+    odre[("ODRÉ<br/>eco2mix datasets")]
+
+    subgraph compose["Docker Compose"]
+        front["<b>frontend</b><br/>Angular 21 behind nginx<br/>:4200"]
+        kc["<b>Keycloak</b><br/>users, roles, tokens<br/>:8180"]
+        plat["<b>platform</b><br/>Spring Boot + Modulith<br/>users, alerts, API keys, dashboards<br/>:8080"]
+        grid["<b>grid-intelligence</b><br/>Spring Boot, profiles<br/>poller / stream / batch<br/>read API :8081"]
+        kafka[["<b>Kafka</b> (KRaft)<br/>snapshot-received<br/>snapshot-stored<br/>band-changed"]]
+        db[("<b>TimescaleDB</b><br/>schema grid (grid_app)<br/>schema platform (platform_app)")]
+    end
+
+    user -->|"HTTPS: loads the app"| front
+    user -->|"OIDC code + PKCE"| kc
+    user -->|"REST/JSON + JWT"| plat
+    script -->|"REST/JSON + X-API-Key<br/>/api/v1/public/**"| plat
+    plat -->|"downloads signing keys"| kc
+    plat -->|"REST/JSON (K2):<br/>latest, ranges"| grid
+    grid -->|"HTTPS: poll, daily export"| odre
+    grid -->|"produces / consumes<br/>(K1)"| kafka
+    kafka -->|"snapshot-stored<br/>(group platform-rules)"| plat
+    grid -->|"JDBC, schema grid"| db
+    plat -->|"JDBC, schema platform"| db
+```
+
+Each container owns one kind of data (ADR-001). `platform` never reads schema `grid`: it uses REST for answers and
+Kafka for events (ADR-002). `grid-intelligence` has no authentication and must stay on the internal network.
+
+## C4 level 3: components
+
+### `grid-intelligence` (ports and adapters)
+
+```mermaid
+flowchart LR
+    odre[("ODRÉ")]
+    kafka[["Kafka"]]
+    db[("schema grid")]
+    plat["platform"]
+
+    subgraph infra["infrastructure"]
+        odreclient["odre<br/>client + ACL"]
+        poller["poller<br/>(profile poller)"]
+        stream["stream<br/>(profile stream)<br/>store + band step"]
+        batch["batch jobs<br/>(profile batch)"]
+        persist["persistence<br/>JDBC upserts, merged view"]
+        api["api<br/>read API (K2)"]
+    end
+    subgraph app["application + domain"]
+        uc["use cases and ports<br/>StoreSnapshot, TrackBand,<br/>Sync*Consolidated, GetSnapshotRange"]
+        dom["domain<br/>GridSnapshot, Band, Quality"]
+    end
+
+    odre --> odreclient
+    poller --> odreclient
+    poller -->|"snapshot-received"| kafka
+    kafka --> stream
+    stream --> uc
+    batch --> odreclient
+    batch --> uc
+    uc --> dom
+    uc --> persist
+    persist --> db
+    stream -->|"snapshot-stored,<br/>band-changed"| kafka
+    plat -->|"REST"| api
+    api --> uc
+```
+
+### `platform` (Spring Modulith modules)
+
+```mermaid
+flowchart LR
+    grid["grid-intelligence<br/>(K2)"]
+    kafka[["Kafka<br/>snapshot-stored"]]
+    kc["Keycloak"]
+
+    subgraph platform["platform"]
+        sec["security<br/>JWT chain + API-key chain"]
+        adv["<b>advisory</b><br/>citizen: traffic light,<br/>K2 client, GridIntelligence API"]
+        auto["<b>automation</b><br/>alerts, rule engine, API keys,<br/>public API, webhooks"]
+        reg["<b>regional</b><br/>official: dashboard, targets"]
+        del["<b>delivery</b><br/>in-app notifications,<br/>webhook delivery log"]
+    end
+
+    kc -.->|"signing keys"| sec
+    adv -->|"REST"| grid
+    kafka --> auto
+    auto -->|"uses"| adv
+    auto -->|"uses"| del
+    reg -->|"uses"| adv
+```
+
+Modules use each other's public API or in-process events, and `ModularityTests` fails the build on an illegal
+dependency. The Modulith-generated diagrams in `docs/architecture/` show the same dependencies in more detail.
+
+## Dynamic view: journey of one reading
+
+```mermaid
+sequenceDiagram
+    participant O as ODRÉ
+    participant P as poller + ACL
+    participant K as Kafka
+    participant S as stream
+    participant D as TimescaleDB (grid)
+    participant R as rule engine (platform)
+    participant U as user
+
+    P->>O: rows newer than the last seen (1 h overlap)
+    P->>K: snapshot-received (key = scope)
+    K->>S: snapshot-received
+    S->>D: upsert (scope, observed_at)
+    S->>K: snapshot-stored
+    S->>K: band-changed (only if the band changed)
+    K->>R: snapshot-stored
+    R->>R: evaluate rules, debounce
+    R-->>U: in-app notification (webhook: U9)
+```
+
+## Data strategy
+
+| Step | Choice | Why | Where |
+|---|---|---|---|
+| **Collection** | Poll ODRÉ every 15 minutes (real time) and resync the history daily (batch, one count call, exports only for years that changed) | The source is a public pull API with a quota of 50,000 calls per user per month; the batch spends about 1 call on a normal day | ADR-003 |
+| **Translation** | Anti-corruption layer: ODRÉ field names never leave `infrastructure.odre`; every number is parsed defensively; `date_heure` (UTC) is the only timestamp | The datasets drift in types and use sentinels (`"ND"`, `"-"`) | `docs/data/` |
+| **Processing** | Speed: Kafka Streams stores and publishes, a stateful step tracks the CO2 band. Batch: upsert that never downgrades definitive rows | Order per scope, replay, several consumers (ADR-004) | `docs/contracts/events.md` |
+| **Storage** | One TimescaleDB, one schema and one role per app. `speed_snapshot` (15 min, hypertable), `batch_snapshot` (30 min), view `merged_snapshot`; user data in `platform` with a prefix per module | Single writer per table, no cross-schema reads, time-series functions (`time_bucket`) | ADR-001, ADR-003 |
+| **Serving** | REST pull for queries (K2), Kafka push for events (K1) | A screen needs an answer now; an alert reacts to an event | ADR-002 |
+| **User data** | Alerts, API keys (SHA-256 only), notifications, targets, region code: in `platform` only | The assignment requires processing user data; it stays apart from grid data | `docs/data/user-data.md` |
+
+## Constraints that shaped the design
+
+- **Data source**: ODRÉ lags real time by 15 to 30 minutes, has no retention guarantee for the real-time datasets, and
+  has no CO2 for regions (estimated from the mix, always flagged `estimated`). Quota: 50,000 calls per month, so tests
+  never call it (CI job `no-live-odre`).
+- **Team**: three developers and a few weeks, so few deployables (ADR-001) and tools that run in Compose with one
+  command.
+- **Volume**: tiny (one message per scope every 15 minutes, 13 scopes), so Kafka is justified by ordering, decoupling
+  and replay, not by load (ADR-004).
+- **Security**: no password in our apps (ADR-006), only a hash of API keys (ADR-005), `grid-intelligence` internal only.
+- **Reproducibility**: the whole stack starts with `docker compose up -d --build`; backend tests use Testcontainers.
+
 ## Decisions
 
 | ADR | Decision | Status |
