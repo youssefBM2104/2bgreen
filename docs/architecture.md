@@ -59,7 +59,7 @@ Delivery is at least once; idempotent upserts make a duplicate harmless.
 | Path | Source | Writer | Table | Grain |
 |---|---|---|---|---|
 | Speed | `eco2mix-national-tr`, `eco2mix-regional-tr` | stream | `speed_snapshot` | 15 min, provisional |
-| Batch | `eco2mix-national-cons-def` (since 2012), `eco2mix-regional-cons-def` (from 2021) | daily job (`batch` profile) | `batch_snapshot` | 30 min, consolidated or definitive |
+| Batch | `eco2mix-national-cons-def` (since 2012), `eco2mix-regional-cons-def` (dataset from 2013, loaded from 2021) | daily job (`batch` profile) | `batch_snapshot` | 30 min, consolidated or definitive |
 
 The view `grid.merged_snapshot` serves ranges: for a half hour the batch row wins, otherwise the provisional
 quarter-hours are averaged (`docs/data/merged-view.md`). The batch does not use Kafka.

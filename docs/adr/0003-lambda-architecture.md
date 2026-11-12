@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-10-14).
+Accepted (2026-10-14). Updated 2026-11-12 to match what was built since (the decision itself is unchanged).
 
 ## Context
 
