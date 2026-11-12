@@ -127,10 +127,11 @@ flowchart LR
     reg -->|"uses"| adv
 ```
 
-Modules use each other's public API or in-process events, and `ModularityTests` fails the build on an illegal
-dependency. The Modulith-generated diagrams in `docs/architecture/` show the same dependencies in more detail.
+Modules use each other's public API or in-process events (rules below).
 
 ## Dynamic view: journey of one reading
+
+Repeated every 15 minutes, for the national scope and each region.
 
 ```mermaid
 sequenceDiagram
@@ -152,6 +153,16 @@ sequenceDiagram
     R->>R: evaluate rules, debounce
     R-->>U: in-app notification (webhook: U9)
 ```
+
+1. **Poller and ACL** (`poller` profile). Asks ODRÉ for rows newer than the last one seen, with a 1-hour overlap. The
+   ACL skips forecast-only rows, parses every number defensively, uses only the UTC timestamp and builds the team's
+   own `GridSnapshot`. Regional rows get an estimated CO2 (regional data publishes none, `docs/data/regional-co2.md`).
+2. **Kafka.** Key = scope (`national` or `region:<INSEE code>`), so the readings of a scope stay in order.
+3. **Stream** (`stream` profile, Kafka Streams). Upserts the snapshot on (`scope`, `observed_at`), then publishes
+   `grid.snapshot-stored`. A stateful step keeps the last CO2 band per scope and announces band changes.
+4. **`platform`** reacts to `grid.snapshot-stored`: the rule engine compares each user's thresholds and notifies.
+
+Delivery is at least once; idempotent upserts make a duplicate harmless.
 
 ## Data strategy
 
@@ -203,29 +214,7 @@ Three programs and three pieces of infrastructure. Each program owns one kind of
 | Kafka (port 9092) | Kafka, KRaft mode | Event log between the apps | |
 | TimescaleDB (port 5432) | PostgreSQL 17 + TimescaleDB | One schema per app (`grid`, `platform`), one database role per schema | |
 
-Who calls whom (an arrow starts at the caller):
-
-- frontend → Keycloak: login. frontend → `platform`: every business request, with the token.
-- `platform` → Keycloak: downloads the signing keys once, then checks tokens itself.
-- `platform` → `grid-intelligence`: REST, read API (contract K2, `docs/api/openapi.yaml`).
-- `grid-intelligence` → ODRÉ: the poller and the batch.
-- Both apps → Kafka (contract K1, `docs/contracts/events.md`) and → TimescaleDB, each in its own schema.
-
-## Journey of one reading (every 15 minutes)
-
-ODRÉ `*-tr` → **poller + ACL** → `grid.snapshot-received` → **stream** → `grid.speed_snapshot` →
-`grid.snapshot-stored` → **rule engine** of `platform` (alerts, webhooks), and → **band step** of the stream →
-`grid.band-changed`.
-
-1. **Poller and ACL** (`poller` profile). Asks ODRÉ for rows newer than the last one seen, with a 1-hour overlap. The
-   ACL skips forecast-only rows, parses every number defensively, uses only the UTC timestamp and builds the team's
-   own `GridSnapshot`. Regional rows get an estimated CO2 (regional data publishes none, `docs/data/regional-co2.md`).
-2. **Kafka.** Key = scope (`national` or `region:<INSEE code>`), so the readings of a scope stay in order.
-3. **Stream** (`stream` profile, Kafka Streams). Upserts the snapshot on (`scope`, `observed_at`), then publishes
-   `grid.snapshot-stored`. A stateful step keeps the last CO2 band per scope and announces band changes.
-4. **`platform`** reacts to `grid.snapshot-stored`: the rule engine compares each user's thresholds and notifies.
-
-Delivery is at least once; idempotent upserts make a duplicate harmless.
+The calls between them, with protocols and topics, are in the container diagram above.
 
 ## History: speed and batch paths
 
@@ -247,17 +236,14 @@ quarter-hours are averaged (`docs/data/merged-view.md`). The batch does not use 
 
 DevOps scripts use the second path: an API key on `/api/v1/public/**` (ADR-005).
 
-## Inside the apps
+## Rules that keep the structure
 
-- **`grid-intelligence`**: ports and adapters. `domain` (pure), `application` (use cases and ports),
-  `infrastructure` (`odre`, `poller`, `messaging`, `stream`, `persistence`, `api`). ArchUnit checks that `domain` stays
-  pure, that `application` does not depend on `infrastructure` and that only `infrastructure.odre` knows ODRÉ.
-- **`platform`**: four Spring Modulith modules, one per bounded context (Citizen Advisory, Carbon-Aware API,
-  Regional Transition, Delivery; Grid Intelligence is the other app), each with `application` / `domain` / `infrastructure`:
-  `advisory` (citizen, and the K2 client), `automation` (alerts, rule engine, API keys, public API), `regional`
-  (official), `delivery` (in-app notifications, webhook delivery log). Modules use each other's public API or
-  in-process events; `ModularityTests` checks it. Each module owns its tables (prefix `advisory_`, `automation_`...),
-  with no foreign key between modules (`docs/data/user-data.md`). Module diagrams: `docs/architecture/`.
+- **`grid-intelligence`**: ArchUnit checks that `domain` stays pure, that `application` does not depend on
+  `infrastructure` and that only `infrastructure.odre` knows ODRÉ.
+- **`platform`**: one Spring Modulith module per bounded context (Grid Intelligence is the other app), each with
+  `application` / `domain` / `infrastructure`. `ModularityTests` fails the build on an illegal dependency. Each module
+  owns its tables (prefix `advisory_`, `automation_`...), with no foreign key between modules
+  (`docs/data/user-data.md`). Generated module diagrams: `docs/architecture/`.
 
 ## Tools
 
