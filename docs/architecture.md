@@ -1,7 +1,8 @@
 # 2bGreen architecture
 
 Synthesis of the architecture overview of 2026-10-14, updated with what has been built since. Each structuring choice
-has an ADR in `docs/adr/`; this page says what the system is, the ADRs say why.
+has an ADR in `docs/adr/`; this page says what the system is, the ADRs say why. The problem side (personas, ubiquitous
+language, subdomains, bounded contexts, context map) is in [`domain-analysis.md`](domain-analysis.md).
 
 The architecture is shown with the [C4 model](https://c4model.com), from the outside in: system context,
 containers, components, then one dynamic view (the journey of a reading). Diagrams are Mermaid, so GitHub renders them.
@@ -218,6 +219,9 @@ The calls between them, with protocols and topics, are in the container diagram 
 
 ## History: speed and batch paths
 
+This is the one place where the two paths are described as tables; the datasets themselves (content, grain, quality)
+are in [`domain-analysis.md`](domain-analysis.md#13-data-collected) and `docs/data/`.
+
 | Path | Source | Writer | Table | Grain |
 |---|---|---|---|---|
 | Speed | `eco2mix-national-tr`, `eco2mix-regional-tr` | stream | `speed_snapshot` | 15 min, provisional |
@@ -267,4 +271,4 @@ DevOps scripts use the second path: an API key on `/api/v1/public/**` (ADR-005).
   is exact.
 - The batch's real pre-computation (typical CO2 by hour and weekday, G5).
 - Invalid Kafka messages: logged and skipped, or a dead-letter topic.
-- Whether the Regional Transition subdomain is Core or Supporting.
+- Regional Transition is classified Supporting (`domain-analysis.md`); revisit it if U13 to U16 get built.
