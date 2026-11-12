@@ -155,7 +155,7 @@ paths:
       description: |
         Same rules as the national range endpoint. The region is checked first: a malformed code is `404
         SCOPE_UNKNOWN` whatever `from` and `to` say. A well-formed code without data is `200` with `items: []`.
-        Regional batch data does not exist yet (G6), so every row is `PROVISIONAL` for now.
+        From 2021 the regional batch (G6) gives `CONSOLIDATED` and `DEFINITIVE` rows, CO2 estimated as in G7.
       parameters:
         - $ref: '#/components/parameters/RegionCode'
         - $ref: '#/components/parameters/From'

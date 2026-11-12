@@ -3,9 +3,12 @@
 Decision-support platform built on France's public electricity data (RTE éCO2mix, published through the
 ODRÉ open data portal): **when to consume, when to compute, and how each region is doing.**
 The same data is presented differently to three personas, and each persona's own data (preferences,
-API keys, targets, annotations...) is stored and processed by the platform.
+API keys, targets...) is stored and processed by the platform.
 
 Course project: Ingénierie des Architectures Logicielles, Polytech Nice Sophia.
+
+**Documentation:** [architecture (C4)](docs/architecture.md) · [domain analysis (DDD)](docs/domain-analysis.md) ·
+[decisions (ADR)](docs/adr/) · [contribution rules](CONTRIBUTING.md) · [run the project](#run-the-project)
 
 | Persona | Goal |
 |---|---|
@@ -15,18 +18,30 @@ Course project: Ingénierie des Architectures Logicielles, Polytech Nice Sophia.
 
 ## Status
 
-Environment and project skeletons are in place: infrastructure runs, both backends and the frontend start,
-Keycloak has the realm, roles and test users. The national **speed layer** works end to end on real data:
-ODRÉ → poller → Kafka → stream → TimescaleDB (`grid-intelligence`). The read API, the platform features and the
-frontend pages are not built yet.
+The whole stack runs with one command (see "Run the project"). Data flows end to end on real data:
+ODRÉ → poller → Kafka → stream → TimescaleDB → read API → `platform` → Angular, for France and the 12 regions, with a
+daily batch of consolidated history.
 
-## Architecture (target)
+| Persona | Built | Planned |
+|---|---|---|
+| **Citizen** | Traffic light, clean-grid alert, notification bell | Today's mix, best slot, cleanest-hours map, usage log, "my region" |
+| **DevOps** | API keys with daily quota, public carbon-intensity API (latest and 7-day range) | Conditional webhooks (rules are evaluated, nothing is sent yet), best window for a job |
+| **Regional official** | Regional dashboard against the nation (estimated CO2 flagged) | Trends, targets and progress, region comparison, pace alert |
+
+Also open: the typical CO2 profile by hour and weekday (G5) and the written deliverables (risk matrix, CI/CD,
+code structure). Issue list: GitHub issues, codes explained in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Architecture
 
 - **Lambda architecture**: a speed layer (Kafka Streams on provisional real-time data) and a batch layer
   (daily resync of consolidated/definitive data) feeding one serving store.
 - **Bounded contexts** (DDD) as modules of a modular monolith, not microservices.
 - Kafka as the event backbone between contexts; PostgreSQL + TimescaleDB for time series and user data;
   Keycloak for authentication (OIDC, PKCE).
+
+Architecture overview: [`docs/architecture.md`](docs/architecture.md). Domain analysis (DDD: personas, language,
+subdomains, contexts): [`docs/domain-analysis.md`](docs/domain-analysis.md). Decisions and their alternatives:
+[`docs/adr/`](docs/adr/). How we work (branches, commits, definition of done): [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Repository layout
 
@@ -38,42 +53,75 @@ frontend pages are not built yet.
 | `frontend/` | Angular app, one area per persona. Port 4200 |
 | `infra/keycloak/` | Exported Keycloak realm `2bgreen` (roles, client, test users), imported automatically on first start |
 
-## Prerequisites
+## Run the project
 
-- JDK 21 and Maven (each Spring app also ships a Maven wrapper, `./mvnw`)
-- Node 22 LTS and Angular CLI 21 (`npm install -g @angular/cli@21`)
-- Docker with the Compose plugin
-
-## Getting started
-
-### Everything in one command (Docker)
+Prerequisites: Docker with the Compose plugin (nothing else for the one-command mode). JDK 21 and Node 22 are only
+needed to work on the code (see "Work on the code" below).
 
 ```bash
 docker compose up -d --build
 ```
 
 The first build takes a few minutes (Maven and npm downloads); the next ones reuse the cache. Compose starts the
-services in order, each one waiting for the health of the ones it needs: TimescaleDB, Kafka and Keycloak, then
-`grid-intelligence` (speed layer: poller and stream, and the read API), then `platform`, then the frontend. When
-`docker compose ps` shows everything `healthy` (about 1 to 2 minutes), open http://localhost:4200 and log in as
-`citizen` / `citizen` (see "Keycloak" below for the other users).
+services in order, each one waiting for the health of the ones it needs. When `docker compose ps` shows everything
+`healthy` (about 1 to 2 minutes), open **http://localhost:4200**.
 
-- **Wait for the first data.** On an empty database the poller backfills `eco2mix-national-tr` (about 70 ODRÉ calls) and the
-  regional dataset (about 820 calls, once, about 1.7 % of the monthly quota). The national rows land within a minute or
-  two, and the traffic light shows no reading (`NO_DATA`) until then. Reload the page after a minute.
+### Accounts and addresses (local development only)
+
+| What | Address | Login |
+|---|---|---|
+| **Citizen** space | http://localhost:4200 | `citizen` / `citizen` |
+| **DevOps** space | http://localhost:4200 | `devops` / `devops` |
+| **Regional official** space (region 93, Provence-Alpes-Côte d'Azur) | http://localhost:4200 | `official` / `official` |
+| Keycloak admin console | http://localhost:8180 | `admin` / `admin` |
+| Database (administration only) | `localhost:5432`, db `2bgreen` | `postgres` / `postgres_dev` |
+| Database, one role per app | same | `grid_app` / `grid_dev`, `platform_app` / `platform_dev` |
+
+The login page redirects each user to the space of their role: `/citoyen`, `/devops`, `/elu`. Other ports:
+`platform` 8080, `grid-intelligence` 8081 (internal API without authentication, keep it off public networks),
+Kafka 9092.
+
+**Wait for the first data.** On an empty database the poller loads the last weeks of national data (about 70 ODRÉ
+calls) and of the 12 regions (about 820 calls, once, about 1.7 % of the monthly quota). The traffic light shows no
+reading (`NO_DATA`) until then: reload after a minute or two.
+
+### Check each persona
+
+Use "Se déconnecter" in the header between users.
+
+1. **Citizen** (`citizen`). `/citoyen` shows the traffic light: green below 20, amber below 40, red from 40 gCO2eq/kWh,
+   with the value, its time and a "stale" notice when the reading is over 2 hours old. In `/citoyen/alertes`, create an
+   alert "below 1000" (any real value qualifies). The notification arrives with the next reading, within 15 minutes
+   (the poll interval), and the bell in the header shows it within a minute after that.
+2. **DevOps** (`devops`). In `/devops/cles`, create a key and copy it: it is shown once. Then ask the public API:
+   ```bash
+   curl -i -H "X-API-Key: <your key>" http://localhost:8080/api/v1/public/intensity/latest
+   ```
+   Expect `200` with `co2Intensity`, `trafficLight`, `stale` and the `X-RateLimit-*` headers. Without the header, or after
+   revoking the key in the page, the answer is `401`. A range: `/api/v1/public/intensity?from=<UTC>&to=<UTC>` (7 days
+   at most). Contract: `docs/api/public-openapi.yaml`.
+3. **Regional official** (`official`). `/elu` shows the dashboard of region 93 next to France: coverage rate, renewable
+   share, importing or exporting, with the estimated CO2 flagged and the freshness of the regional reading (regional
+   data is 1 to 3 hours late).
+4. **Roles are enforced.** Logged in as `citizen`, open `/devops`: the app sends you to "Accès refusé". Calling
+   `platform` without a token returns `401`: `curl -i http://localhost:8080/api/v1/advisory/traffic-light`.
+
+Not built yet (see Status): webhooks, best window, targets, trends and the other planned features have no page.
+
+### Good to know
+
 - **Batch layer (optional).** `docker compose --profile batch up -d` also starts the daily resync of consolidated data. Its
-  first run loads the whole history (about 257,000 rows, 17 calls).
-- **Ports:** frontend 4200, `platform` 8080, `grid-intelligence` 8081 (internal API, no authentication, keep it off public
-  networks), Keycloak 8180, Kafka 9092, TimescaleDB 5432. They must stay as they are: the browser calls `platform` and
-  Keycloak on `localhost`, and the Keycloak client and the CORS rule expect the frontend on `http://localhost:4200`.
-  So the stack is meant to run on the machine you browse from.
-- **Keycloak and the token issuer.** Tokens are issued for `http://localhost:8180/realms/2bgreen` (the address the
-  browser uses, fixed by `KC_HOSTNAME`). Inside Docker `platform` cannot reach that address, so it reads the signing keys
-  at `http://keycloak:8080` (`jwk-set-uri`) and still checks `iss` against `localhost:8180`.
-- **Data is kept** between `docker compose down` and the next `up`. `docker compose down -v` wipes it (the next start
-  backfills again). Logs: `docker compose logs -f platform`.
+  first run loads the whole history (about 257,000 national rows in 17 calls; the regional history takes about 2 hours).
+- **The stack runs on the machine you browse from.** The browser calls `platform` and Keycloak on `localhost`, and
+  the Keycloak client and the CORS rule expect the frontend on `http://localhost:4200`: do not change the ports.
+- **Data is kept** between `docker compose down` and the next `up`; `docker compose down -v` wipes it (the next start
+  loads again). Logs: `docker compose logs -f platform`.
+- Token issuer inside Docker: see "Keycloak" below.
 
-The rest of this section is the mode for working on the code: only the infrastructure in Docker, the apps run by hand.
+## Work on the code
+
+Prerequisites: JDK 21 (each Spring app ships `./mvnw`), Node 22 LTS and Angular CLI 21
+(`npm install -g @angular/cli@21`), Docker. The mode below runs only the infrastructure in Docker and the apps by hand.
 
 ### 1. Infrastructure
 
@@ -284,8 +332,8 @@ configuration at startup; to keep only the app's own lines, add
 `-Dspring-boot.run.arguments="--logging.level.org.apache.kafka=WARN"`. How to check the result: see
 "Checking the speed layer" below.
 
-The batch layer (daily resync of `eco2mix-national-cons-def` into `batch_snapshot`) is its own profile and does not
-need the poller or the stream:
+The batch layer (daily resync of `eco2mix-national-cons-def` and, since G6, `eco2mix-regional-cons-def` into
+`batch_snapshot`) is its own profile and does not need the poller or the stream:
 
 ```bash
 cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=batch
@@ -293,11 +341,20 @@ cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=batch
 
 On an empty table the first run loads the whole history (2012 to the last published date, about 257,000 rows, about
 17 ODRÉ calls, once). Later runs cost one call and say `nothing changed` unless ODRÉ added rows or moved a year from
-consolidated to definitive. Settings: `src/main/resources/application-batch.properties`. Check the result:
+consolidated to definitive. Settings: `src/main/resources/application-batch.properties`.
+
+The regional batch (G6) does the same for the 12 regions, from `batch.regional.first-year` (2021) on: about
+210,000 rows per year, 7 calls for the first load, 1 call a day after. Each reading gets the regional CO2 estimate of
+G7 (`estimated = true`), like the speed layer. **The first load is long:** ODRÉ sends a regional year at about 50 kB/s
+(18.6 min for 2021 on 2026-11-11), so about 2 hours for 2021 to 2026, once. That is why exports have their own timeout,
+`odre.export-read-timeout` (1 h); with the 20 s of the other calls every export failed, national included.
+The `tco_*` / `tch_*` rates of the dataset are not loaded: no feature uses them (the dashboard of U11 computes its
+coverage rate from consumption and production), and they would triple the download. Check the result:
 
 ```sql
-SELECT min(observed_at), max(observed_at), count(*) FROM grid.batch_snapshot;
-SELECT year, quality, row_count FROM grid.batch_sync_state ORDER BY year, quality;
+SELECT scope, min(observed_at), max(observed_at), count(*) FROM grid.batch_snapshot GROUP BY scope ORDER BY scope;
+-- one state per dataset: scope 'national' (G3) and 'regional' (G6, counts of all regions together)
+SELECT scope, year, quality, row_count FROM grid.batch_sync_state ORDER BY scope, year, quality;
 ```
 
 ### 3. Frontend
@@ -343,7 +400,9 @@ of the TimescaleDB container:
   change it: the account page refuses an edit (`error-user-attribute-read-only`). The client mapper `region_code` puts
   it in the access token. To attach another official: admin console > Users > the user > Attributes.
 - The platform is a resource server: it validates tokens issued by
-  `http://localhost:8180/realms/2bgreen` and checks the realm roles.
+  `http://localhost:8180/realms/2bgreen` (the address the browser uses, fixed by `KC_HOSTNAME`) and checks the realm roles.
+  Inside Docker `platform` cannot reach that address, so it reads the signing keys at `http://keycloak:8080`
+  (`jwk-set-uri`) and still checks `iss` against `localhost:8180`.
 - Account page to test a login: http://localhost:8180/realms/2bgreen/account
 
 **Changing the realm**: edit it in the admin console, then re-export it and commit the file:

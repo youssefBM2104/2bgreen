@@ -68,9 +68,25 @@ Committed under `grid-intelligence/src/test/resources/odre/`:
 - `regional-consdef-definitive.json` (Pays de la Loire, 2025-12-31, définitive, non-null — also shows `eolien` as a string `"870"` here, and the `eolien_terrestre`/`eolien_offshore` split present, consistent with the earlier cons-def sample)
 - `regional-consdef-oldest-row-ND-sentinel.json` (Bretagne, 2013-01-01, the dataset's oldest row — `eolien: "ND"`)
 - `regional-consdef-sparse-null-dash-sentinel.json` (Normandie, 2026-01-01 — `eolien: "-"`, one of only 24 null rows in the whole dataset)
+- `regional-consdef-counts.json` (captured 2026-11-11: rows per UTC year and `nature`, the change-detection query of G6)
+- `regional-consdef-export-dst-2025.jsonl` (captured 2026-11-11: export with the G6 `select`, Occitanie and PACA, 2025-03-30 00:00–02:00 UTC, with the DST phantoms)
+
+## Checked on 2026-11-11 (issue G6)
+
+- **12 regions**, the same codes as régional-tr, **99,310 rows each since 2021-01-01 UTC**: a clean 30-min grid.
+- **Same spring DST phantoms as national cons-def.** On 2025-03-30, `01:00Z` comes twice, labelled `02:00` and `03:00` (same values), and `01:30Z` twice, labelled `02:30` (a copy of `01:30`) and `03:30`. The row whose `heure` disagrees with `date_heure` in Paris time is the phantom; the batch drops it with the national rule.
+- **Export throughput is the bottleneck**: a regional year with the G6 `select` is 57 MB / 210,240 rows; the first byte came after 2 s, the whole file after 18.6 min (about 50 kB/s).
+
+## How the batch reads this dataset (G6)
+
+- **Use case** `SyncRegionalConsolidated`, same algorithm as the national batch (G3, shared in `ConsolidatedYears`): one count call per run (`year(date_heure)`, `nature`, all regions together), and a whole-UTC-year export only for the years whose counts changed. Years before `batch.regional.first-year` (2021) are ignored. Its sync state is kept under the key `regional` in `batch_sync_state`, apart from the national one.
+- **ACL** `RegionalConsolidatedMapping`: scope `region:<code>`, `thermique` to `production.thermal`, quality from `nature`, DST phantoms dropped, rows without consumption or region code dropped. The export asks only for the snapshot columns (`select`).
+- **CO2**: the use case applies the G7 estimate (`RegionalCo2Estimator`) to every reading, so `batch_snapshot` holds `estimated = true` regional CO2, like `speed_snapshot`.
+- **Upsert**: the G3 rules (definitive never replaced by consolidated, nothing written when nothing differs).
+- **Not loaded**: `tco_*` / `tch_*`, exchanges, batteries, onshore/offshore split. No feature needs them, and the coverage rate of U11 is computed from consumption and production.
 
 ## Open items for later (need a live curl)
 
-1. Distinct region count and the actual list of codes (not yet confirmed to match régional-tr's 12 — not computed by arithmetic here since this dataset's row count per region isn't as clean to back out, given the sparse-null and historical-depth differences).
+1. ~~Distinct region count and the actual list of codes.~~ Done for 2021+ (G6): the 12 codes of régional-tr.
 2. Exact day of the régional définitive flip, to compare against national's timing.
 3. Whether `"ND"`/`"-"` (or other sentinels) appear on fields besides `eolien`, and whether they appear in régional-tr too.

@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.twobgreen.gridintelligence.application.ConsolidatedOdreGateway;
 import com.twobgreen.gridintelligence.application.OdreGateway;
+import com.twobgreen.gridintelligence.application.RegionalConsolidatedOdreGateway;
 import com.twobgreen.gridintelligence.application.RegionalOdreGateway;
 
 /**
@@ -36,5 +37,10 @@ class OdreClientConfig {
 	@Bean
 	ConsolidatedOdreGateway consolidatedOdreGateway(OdreClient client) {
 		return new NationalConsolidatedGateway(client);
+	}
+
+	@Bean
+	RegionalConsolidatedOdreGateway regionalConsolidatedOdreGateway(OdreClient client) {
+		return new RegionalConsolidatedGateway(client);
 	}
 }
