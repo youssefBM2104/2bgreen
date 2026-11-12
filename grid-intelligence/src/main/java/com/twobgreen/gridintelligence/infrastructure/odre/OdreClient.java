@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,12 @@ class OdreClient {
 
 	static final String NATIONAL_CONSOLIDATED = "eco2mix-national-cons-def";
 
+	static final String REGIONAL_CONSOLIDATED = "eco2mix-regional-cons-def";
+
+	/** The columns of {@link RegionalConsolidatedRecord}, nothing more. */
+	static final String REGIONAL_CONSOLIDATED_FIELDS = "date_heure,heure,nature,code_insee_region,consommation,"
+			+ "thermique,nucleaire,eolien,solaire,hydraulique,bioenergies,pompage";
+
 	private static final Logger log = LoggerFactory.getLogger(OdreClient.class);
 
 	private static final String RECORDS = "/catalog/datasets/{dataset}/records"
@@ -49,6 +56,8 @@ class OdreClient {
 
 	// Whole result as JSON Lines in one call: records is capped at 100 rows a call, and every call costs the same
 	private static final String EXPORT = "/catalog/datasets/{dataset}/exports/jsonl?where={where}";
+
+	private static final String EXPORT_SELECT = "/catalog/datasets/{dataset}/exports/jsonl?select={select}&where={where}";
 
 	private static final String COUNTS = "/catalog/datasets/{dataset}/records"
 			+ "?select={select}&group_by={groupBy}&limit={limit}";
@@ -60,25 +69,33 @@ class OdreClient {
 
 	private final RestClient rest;
 
+	/** For the whole-year exports only: same server, longer read timeout. */
+	private final RestClient exports;
+
 	private final int pageSize;
 
 	private final OdreResponses responses = new OdreResponses();
 
-	OdreClient(RestClient rest, int pageSize) {
+	OdreClient(RestClient rest, RestClient exports, int pageSize) {
 		this.rest = rest;
+		this.exports = exports;
 		this.pageSize = pageSize;
 	}
 
 	static OdreClient create(OdreProperties properties) {
 		HttpClient http = HttpClient.newBuilder().connectTimeout(properties.connectTimeout()).build();
+		return new OdreClient(restClient(properties, http, properties.readTimeout()),
+				restClient(properties, http, properties.exportReadTimeout()), properties.pageSize());
+	}
+
+	private static RestClient restClient(OdreProperties properties, HttpClient http, Duration readTimeout) {
 		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(http);
-		requestFactory.setReadTimeout(properties.readTimeout());
-		RestClient rest = RestClient.builder()
+		requestFactory.setReadTimeout(readTimeout);
+		return RestClient.builder()
 				.baseUrl(properties.baseUrl().toString())
 				.requestFactory(requestFactory)
 				.defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
 				.build();
-		return new OdreClient(rest, properties.pageSize());
 	}
 
 	/**
@@ -120,25 +137,44 @@ class OdreClient {
 	 *         half-read year is never returned
 	 */
 	List<NationalConsolidatedRecord> nationalConsolidatedBetween(Instant from, Instant to) {
+		return exportBetween(NATIONAL_CONSOLIDATED, EXPORT, null, from, to, responses::nationalConsolidatedLine);
+	}
+
+	/**
+	 * Same for {@code eco2mix-regional-cons-def}, every region together: about 210,000 rows a year (12 regions, 30-min
+	 * grain). Only the columns of the snapshot are asked for ({@code select}), which cuts the transfer by about two
+	 * thirds: the {@code tco_*} / {@code tch_*} rates and the exchanges are not needed.
+	 *
+	 * @param from must be whole seconds: it goes into an ODSQL date literal
+	 * @param to same
+	 */
+	List<RegionalConsolidatedRecord> regionalConsolidatedBetween(Instant from, Instant to) {
+		return exportBetween(REGIONAL_CONSOLIDATED, EXPORT_SELECT, REGIONAL_CONSOLIDATED_FIELDS, from, to,
+				responses::regionalConsolidatedLine);
+	}
+
+	private <T> List<T> exportBetween(String dataset, String template, String select, Instant from, Instant to,
+			Function<String, T> decode) {
 		Objects.requireNonNull(from, "from");
 		Objects.requireNonNull(to, "to");
-		List<NationalConsolidatedRecord> rows = new ArrayList<>();
+		List<T> rows = new ArrayList<>();
 		if (!to.isAfter(from)) {
 			return rows;
 		}
 		String where = "date_heure >= \"" + from + "\" and date_heure < \"" + to + "\" and consommation is not null";
-		get(NATIONAL_CONSOLIDATED, from, EXPORT, new Object[] { NATIONAL_CONSOLIDATED, where }, body -> {
+		Object[] variables = select == null ? new Object[] { dataset, where } : new Object[] { dataset, select, where };
+		get(exports, dataset, from, template, variables, body -> {
 			try (BufferedReader lines = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
 				String line;
 				while ((line = lines.readLine()) != null) {
 					if (!line.isBlank()) {
-						rows.add(responses.nationalConsolidatedLine(line));
+						rows.add(decode.apply(line));
 					}
 				}
 			}
 			return rows;
 		});
-		log.debug("ODRÉ {}: {} rows between {} and {} in 1 export call", NATIONAL_CONSOLIDATED, rows.size(), from, to);
+		log.debug("ODRÉ {}: {} rows between {} and {} in 1 export call", dataset, rows.size(), from, to);
 		return rows;
 	}
 
@@ -152,8 +188,17 @@ class OdreClient {
 	 *         answer would hide a change
 	 */
 	List<ConsolidatedCount> nationalConsolidatedCounts() {
-		String body = get(NATIONAL_CONSOLIDATED, Instant.EPOCH, COUNTS, new Object[] { NATIONAL_CONSOLIDATED,
-				"annee,nature,count(*) as n", "year(date_heure) as annee,nature", COUNTS_LIMIT }, this::readText);
+		return consolidatedCounts(NATIONAL_CONSOLIDATED);
+	}
+
+	/** Same for {@code eco2mix-regional-cons-def}, every region together. */
+	List<ConsolidatedCount> regionalConsolidatedCounts() {
+		return consolidatedCounts(REGIONAL_CONSOLIDATED);
+	}
+
+	private List<ConsolidatedCount> consolidatedCounts(String dataset) {
+		String body = get(dataset, Instant.EPOCH, COUNTS, new Object[] { dataset, "annee,nature,count(*) as n",
+				"year(date_heure) as annee,nature", COUNTS_LIMIT }, this::readText);
 		try {
 			RecordsPage<ConsolidatedCount> page = responses.nationalConsolidatedCounts(body);
 			if (page.totalCount() > page.results().size()) {
@@ -163,7 +208,7 @@ class OdreClient {
 			return page.results();
 		}
 		catch (OdreException e) {
-			throw failure(NATIONAL_CONSOLIDATED, Instant.EPOCH, e);
+			throw failure(dataset, Instant.EPOCH, e);
 		}
 	}
 
@@ -243,8 +288,13 @@ class OdreClient {
 	 * before the body is read, so a refused call never reaches a decoder.
 	 */
 	private <T> T get(String dataset, Instant after, String uriTemplate, Object[] variables, BodyReader<T> reader) {
+		return get(rest, dataset, after, uriTemplate, variables, reader);
+	}
+
+	private <T> T get(RestClient client, String dataset, Instant after, String uriTemplate, Object[] variables,
+			BodyReader<T> reader) {
 		try {
-			return rest.get()
+			return client.get()
 					.uri(uriTemplate, variables)
 					.exchange((request, response) -> {
 						HttpStatusCode status = response.getStatusCode();

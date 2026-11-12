@@ -1,14 +1,6 @@
 package com.twobgreen.gridintelligence.application;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
-
-import com.twobgreen.gridintelligence.domain.GridSnapshot;
 
 /**
  * Use case of the batch layer: bring {@code batch_snapshot} up to date with the consolidated and definitive national
@@ -60,25 +52,8 @@ public class SyncNationalConsolidated {
 	 * @throws RuntimeException if the readings cannot be stored
 	 */
 	public synchronized Result sync() {
-		Map<Integer, Set<YearQualityCount>> current = byYear(odre.nationalCounts());
-		Map<Integer, Set<YearQualityCount>> loaded = byYear(state.loaded());
-		List<Integer> yearsLoaded = new ArrayList<>();
-		int rowsWritten = 0;
-		for (Map.Entry<Integer, Set<YearQualityCount>> year : current.entrySet()) {
-			if (year.getValue().equals(loaded.get(year.getKey()))) {
-				continue;
-			}
-			List<GridSnapshot> readings = odre.nationalReadings(year.getKey());
-			rowsWritten += snapshots.upsert(readings);
-			state.markLoaded(year.getKey(), List.copyOf(year.getValue()));
-			yearsLoaded.add(year.getKey());
-		}
-		return new Result(current.size(), yearsLoaded, rowsWritten);
-	}
-
-	/** Years in ascending order; the counts of one year as a set, since only their content matters. */
-	private static Map<Integer, Set<YearQualityCount>> byYear(List<YearQualityCount> counts) {
-		return counts.stream().collect(Collectors.groupingBy(YearQualityCount::year, TreeMap::new,
-				Collectors.toCollection(HashSet::new)));
+		ConsolidatedYears.Outcome outcome = ConsolidatedYears.sync(odre.nationalCounts(), odre::nationalReadings,
+				snapshots, state, Integer.MIN_VALUE, reading -> reading);
+		return new Result(outcome.yearsChecked(), outcome.yearsLoaded(), outcome.rowsWritten());
 	}
 }

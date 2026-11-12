@@ -40,6 +40,28 @@ class OdreResponses {
 	 * envelope. Strict on the structure, lenient on the measures, like {@link #nationalRealtime}.
 	 */
 	NationalConsolidatedRecord nationalConsolidatedLine(String line) {
+		return nationalConsolidatedRow(exportLine(line));
+	}
+
+	/** One line of the regional cons-def export (JSON Lines), see {@link #nationalConsolidatedLine}. */
+	RegionalConsolidatedRecord regionalConsolidatedLine(String line) {
+		JsonNode row = exportLine(line);
+		return new RegionalConsolidatedRecord(
+				dateHeure(row),
+				raw(row, "heure"),
+				raw(row, "nature"),
+				raw(row, "code_insee_region"),
+				raw(row, "consommation"),
+				raw(row, "thermique"),
+				raw(row, "nucleaire"),
+				raw(row, "eolien"),
+				raw(row, "solaire"),
+				raw(row, "hydraulique"),
+				raw(row, "bioenergies"),
+				raw(row, "pompage"));
+	}
+
+	private JsonNode exportLine(String line) {
 		if (line == null || line.isBlank()) {
 			throw invalid("empty line");
 		}
@@ -53,7 +75,7 @@ class OdreResponses {
 		if (!node.isObject()) {
 			throw invalid("a line of the export is not a JSON object");
 		}
-		return nationalConsolidatedRow(node);
+		return node;
 	}
 
 	private <T> RecordsPage<T> page(String body, Function<JsonNode, T> row) {
