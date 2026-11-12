@@ -45,7 +45,7 @@ The same grid reading is shown differently to each persona.
 | `eco2mix-national-tr` | Consumption, production by source, forecasts, CO2 | 15 min | Provisional | Polled every 15 min (speed layer) |
 | `eco2mix-regional-tr` | Same for 12 regions, **no CO2, no forecasts**, fossil as one aggregate | 15 min | Provisional | Polled every hour |
 | `eco2mix-national-cons-def` | History since 2012 | 30 min | Consolidated, then definitive | Daily resync (batch layer) |
-| `eco2mix-regional-cons-def` | Regional history, loaded from 2021 | 30 min | Consolidated, then definitive | Daily resync |
+| `eco2mix-regional-cons-def` | Regional history, dataset from 2013 (code default loaded from 2021, Compose default: region 93 from 2025, see README) | 30 min | Consolidated, then definitive | Daily resync |
 
 How these datasets flow through the speed and batch paths (writers, tables, merged view) is in
 [`architecture.md`](architecture.md#history-speed-and-batch-paths). 13 scopes in all (France and 12 regions). Regional CO2 is **estimated** by 2bGreen from the production mix

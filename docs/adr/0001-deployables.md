@@ -48,7 +48,7 @@ module owns its own tables (prefix `advisory_`, `automation_`, `regional_`, `del
 modules.
 
 Docker Compose runs the three deployables and the infrastructure. The batch runs as a second container of the same
-image (`docker compose --profile batch`), so a long history load never slows the speed layer.
+image, started with the stack (`grid-batch`), so a long history load never slows the speed layer.
 
 ## Consequences
 

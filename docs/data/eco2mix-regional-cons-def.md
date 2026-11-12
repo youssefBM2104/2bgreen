@@ -76,6 +76,7 @@ Committed under `grid-intelligence/src/test/resources/odre/`:
 - **12 regions**, the same codes as régional-tr, **99,310 rows each since 2021-01-01 UTC**: a clean 30-min grid.
 - **Same spring DST phantoms as national cons-def.** On 2025-03-30, `01:00Z` comes twice, labelled `02:00` and `03:00` (same values), and `01:30Z` twice, labelled `02:30` (a copy of `01:30`) and `03:30`. The row whose `heure` disagrees with `date_heure` in Paris time is the phantom; the batch drops it with the national rule.
 - **Export throughput is the bottleneck**: a regional year with the G6 `select` is 57 MB / 210,240 rows; the first byte came after 2 s, the whole file after 18.6 min (about 50 kB/s).
+- **Measured 2026-11-12, one region** (PACA, code 93, UTC year 2025, filter `code_insee_region = "93"`, no `select`): 17,519 rows, 13 MB, **5.9 s**. The time grows with the rows asked for (about a twelfth of the rows, about 1/190 of the time), so the batch can load a few regions in seconds (`batch.regional.regions`). The counts call uses the same filter, so the sync state follows the regions loaded.
 
 ## How the batch reads this dataset (G6)
 
