@@ -1,0 +1,151 @@
+<a mat-button routerLink="/elu">← Espace élu régional</a>
+
+<h1>Mes objectifs</h1>
+<p>
+  Fixez des objectifs pour votre région et suivez leur avancement. La valeur actuelle est une moyenne
+  sur les 12 derniers mois, pour lisser les saisons ; elle est recalculée chaque jour. La trajectoire
+  attendue va en ligne droite de la valeur de référence, le jour de la création, à la cible, à
+  l'échéance.
+</p>
+
+@if (problem(); as text) {
+  <p class="problem" role="alert">{{ text }}</p>
+}
+
+<section class="card" aria-labelledby="new-target-title">
+  <h2 id="new-target-title">Nouvel objectif</h2>
+  @if (full()) {
+    <p>Vous avez atteint la limite de {{ maxTargets }} objectifs. Supprimez-en un pour en créer un autre.</p>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="create()" class="fields">
+      <mat-form-field>
+        <mat-label>Indicateur</mat-label>
+        <mat-select formControlName="indicator">
+          @for (indicator of indicators; track indicator[0]) {
+            <mat-option [value]="indicator[0]">{{ indicator[1] }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Année de référence</mat-label>
+        <input matInput type="number" step="1" min="2013" [max]="lastYear" formControlName="referenceYear" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>
+          Cible
+          @if (form.controls.indicator.value === 'ESTIMATED_CO2') {
+            (gCO₂éq/kWh)
+          } @else {
+            (%)
+          }
+        </mat-label>
+        <input matInput type="number" step="0.1" formControlName="targetValue" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Échéance</mat-label>
+        <input matInput type="date" formControlName="deadline" />
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Tolérance (points, facultatif)</mat-label>
+        <input matInput type="number" step="0.1" min="0.1" formControlName="tolerance" />
+      </mat-form-field>
+      <button mat-flat-button type="submit" [disabled]="saving() || targets() === null">
+        Créer l'objectif
+      </button>
+    </form>
+    <p class="hint">
+      La valeur de référence est calculée sur l'année choisie. Pour une baisse de consommation, la cible
+      est la baisse visée en % par rapport à cette année-là.
+    </p>
+  }
+</section>
+
+@if (targets() === null) {
+  <p>Chargement…</p>
+} @else if (targets()!.length === 0) {
+  <p>Vous n'avez pas encore d'objectif.</p>
+}
+
+@for (target of targets() ?? []; track target.id) {
+  <section class="card target" [attr.aria-labelledby]="'target-' + target.id">
+    <h2 [id]="'target-' + target.id">{{ indicatorLabels[target.indicator] }}</h2>
+    <p class="plan">
+      De {{ value(target.referenceValue, target.unit) }} ({{ target.referenceYear }})
+      @if (target.referenceConsumption !== null) {
+        — consommation moyenne de {{ number(target.referenceConsumption) }} MW
+      }
+      à {{ value(target.targetValue, target.unit) }} le {{ date(target.deadline) }}
+      @if (target.tolerance !== null) {
+        · tolérance ± {{ number(target.tolerance) }} points
+      }
+    </p>
+
+    @if (target.current; as now) {
+      @if (now.achieved) {
+        <p class="state achieved">Objectif atteint</p>
+      } @else {
+        <p class="state" [class]="now.status">{{ statuses[now.status] }}</p>
+      }
+      <div class="figures">
+        <span>Valeur actuelle : <strong>{{ value(now.value, target.unit) }}</strong></span>
+        <span>Attendue aujourd'hui : {{ value(now.expected, target.unit) }}</span>
+        <span>Chemin parcouru : <strong>{{ number(now.percent) }} %</strong></span>
+      </div>
+      <div
+        class="bar"
+        role="progressbar"
+        aria-label="Chemin parcouru"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        [attr.aria-valuenow]="now.percent"
+      >
+        <span [style.width.%]="now.percent"></span>
+      </div>
+      <app-progress-chart [points]="target.history" [unit]="target.unit" />
+      <details>
+        <summary>Voir l'historique en tableau</summary>
+        <table>
+          <thead>
+            <tr><th scope="col">Jour</th><th scope="col">Valeur</th><th scope="col">Attendue</th><th scope="col">Statut</th></tr>
+          </thead>
+          <tbody>
+            @for (point of target.history; track point.day) {
+              <tr>
+                <td>{{ date(point.day) }}</td>
+                <td>{{ value(point.value, target.unit) }}</td>
+                <td>{{ value(point.expected, target.unit) }}</td>
+                <td>{{ statuses[point.status] }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </details>
+    } @else {
+      <p class="hint">Pas encore de valeur : elle apparaît au prochain calcul, quand les données des 12 derniers mois sont disponibles.</p>
+    }
+
+    @if (editing() === target.id) {
+      <form [formGroup]="edit" (ngSubmit)="saveEdit(target.id)" class="fields">
+        <mat-form-field>
+          <mat-label>Cible</mat-label>
+          <input matInput type="number" step="0.1" formControlName="targetValue" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Échéance</mat-label>
+          <input matInput type="date" formControlName="deadline" />
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Tolérance (points)</mat-label>
+          <input matInput type="number" step="0.1" formControlName="tolerance" />
+        </mat-form-field>
+        <button mat-flat-button type="submit" [disabled]="saving()">Enregistrer</button>
+        <button mat-button type="button" (click)="editing.set(null)">Annuler</button>
+      </form>
+    } @else {
+      <p class="actions">
+        <button mat-stroked-button type="button" (click)="startEdit(target)">Modifier</button>
+        <button mat-button type="button" [disabled]="saving()" (click)="remove(target.id)">Supprimer</button>
+      </p>
+    }
+  </section>
+}

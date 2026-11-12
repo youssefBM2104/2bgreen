@@ -19,14 +19,15 @@ Course project: Ingénierie des Architectures Logicielles, Polytech Nice Sophia.
 ## Status
 
 The whole stack runs with one command (see "Run the project"). Data flows end to end on real data:
-ODRÉ → poller → Kafka → stream → TimescaleDB → read API → `platform` → Angular, for France and the 12 regions, with a
-daily batch of consolidated history.
+ODRÉ → poller → Kafka → stream → TimescaleDB → read API → `platform` → Angular, for France and the 12 regions in real
+time, with a daily batch of consolidated history (France since 2012; **one region only, 93**, from 2025, in the default
+setup: see "Why the history covers one region").
 
 | Persona | Built | Planned |
 |---|---|---|
 | **Citizen** | Traffic light, clean-grid alert, notification bell | Today's mix, best slot, cleanest-hours map, usage log, "my region" |
 | **DevOps** | API keys with daily quota, public carbon-intensity API (latest and 7-day range) | Conditional webhooks (rules are evaluated, nothing is sent yet), best window for a job |
-| **Regional official** | Regional dashboard against the nation (estimated CO2 flagged) | Trends, targets and progress, region comparison, pace alert |
+| **Regional official** | Regional dashboard against the nation (estimated CO2 flagged), targets and their progress | Trends, region comparison, pace alert |
 
 Also open: the typical CO2 profile by hour and weekday (G5) and the written deliverables (risk matrix, CI/CD,
 code structure). Issue list: GitHub issues, codes explained in [`CONTRIBUTING.md`](CONTRIBUTING.md).
@@ -81,9 +82,14 @@ The login page redirects each user to the space of their role: `/citoyen`, `/dev
 `platform` 8080, `grid-intelligence` 8081 (internal API without authentication, keep it off public networks),
 Kafka 9092.
 
-**Wait for the first data.** On an empty database the poller loads the last weeks of national data (about 70 ODRÉ
-calls) and of the 12 regions (about 820 calls, once, about 1.7 % of the monthly quota). The traffic light shows no
-reading (`NO_DATA`) until then: reload after a minute or two.
+**Wait for the first data.** On an empty database two things load in the background, both from the one command:
+- **Real time** (poller): the last weeks of France (about 70 ODRÉ calls) and of the 12 regions (about 820 calls, once,
+  about 1.7 % of the monthly quota). The traffic light shows no reading (`NO_DATA`) until it arrives: reload after a
+  minute or two.
+- **History** (batch): France since 2012, which takes a few minutes, and region 93 from 2025, which takes seconds. The
+  targets of the regional official need it: a target compares with a past year, and that year must be loaded.
+  `docker compose logs -f grid-batch` shows the progress; when it says `nothing changed since the last run` for both,
+  the history is complete.
 
 ### Check each persona
 
@@ -102,21 +108,47 @@ Use "Se déconnecter" in the header between users.
    at most). Contract: `docs/api/public-openapi.yaml`.
 3. **Regional official** (`official`). `/elu` shows the dashboard of region 93 next to France: coverage rate, renewable
    share, importing or exporting, with the estimated CO2 flagged and the freshness of the regional reading (regional
-   data is 1 to 3 hours late).
+   data is 1 to 3 hours late). Then "Mes objectifs" (`/elu/objectifs`): create a target, for example **renewable share,
+   reference year 2025**, a target of 45 % and a deadline in 2030. The reference value is computed from 2025, and the
+   target shows its progress against the straight line to the deadline. Reference year **2025** is the one to choose:
+   it is the first year of the default history (see "Why the history covers one region"). Another year answers "not
+   enough data for this reference year".
 4. **Roles are enforced.** Logged in as `citizen`, open `/devops`: the app sends you to "Accès refusé". Calling
    `platform` without a token returns `401`: `curl -i http://localhost:8080/api/v1/advisory/traffic-light`.
 
-Not built yet (see Status): webhooks, best window, targets, trends and the other planned features have no page.
+Not built yet (see Status): webhooks, best window, trends, region comparison and the other planned features have no page.
 
 ### Good to know
 
-- **Batch layer (optional).** `docker compose --profile batch up -d` also starts the daily resync of consolidated data. Its
-  first run loads the whole history (about 257,000 national rows in 17 calls; the regional history takes about 2 hours).
+- **Batch layer.** The `grid-batch` container starts with the stack and resyncs the consolidated history once a day
+  (one ODRÉ call when nothing changed). Its first run is described below.
 - **The stack runs on the machine you browse from.** The browser calls `platform` and Keycloak on `localhost`, and
   the Keycloak client and the CORS rule expect the frontend on `http://localhost:4200`: do not change the ports.
 - **Data is kept** between `docker compose down` and the next `up`; `docker compose down -v` wipes it (the next start
   loads again). Logs: `docker compose logs -f platform`.
 - Token issuer inside Docker: see "Keycloak" below.
+
+### Why the history covers one region
+
+The default setup loads the national history in full (about 257,000 rows) but, for the regions, **only region 93
+(Provence-Alpes-Côte d'Azur, the region of the test official) and only from 2025**. The real-time data still covers
+all 12 regions.
+
+The reason is time, not storage. ODRÉ builds the regional history export slowly, in proportion to its size: one UTC
+year of all 12 regions is about 210,000 rows and takes about 18 minutes (measured 18.6 min on 2026-11-11), so 2021 to
+2026 takes about 2 hours. One region for one year is about 17,500 rows and takes seconds (measured on 2026-11-12:
+17,519 rows, 13 MB, 6 s). Someone who clones the repository to test it should not wait two hours before the targets
+work, and one region is all the demo needs: the official only reaches their own region, and the dashboard and the
+targets are per region. The cost is that another region has no history: its targets answer `REFERENCE_UNAVAILABLE`.
+
+To load more, set the variables before starting the stack (or in a `.env` file at the root):
+
+```bash
+BATCH_REGIONAL_REGIONS=93,76 docker compose up -d --build         # two regions
+BATCH_REGIONAL_REGIONS= BATCH_REGIONAL_FIRST_YEAR=2021 docker compose up -d --build   # all 12 regions since 2021, about 2 h
+```
+
+Counts and exports use the same filter, so changing it later loads the missing rows once; rows already stored stay.
 
 ## Work on the code
 
@@ -285,6 +317,38 @@ Errors are Problem Details with a `code`: `403` `REGION_NOT_ASSIGNED` (the token
 is not among the 12 regions), `404` `NO_DATA` (no reading for the region yet), `503` `GRID_UNAVAILABLE`. Another role
 gets a plain `403`.
 
+Regional targets (U13), the page "Mes objectifs" (`/elu/objectifs`). The user is the `sub` of the token and the region
+its `region_code`: an official only reaches their own targets, in their own region (a target created in another region
+is not found, `404`).
+
+| Endpoint | Role | What it does |
+|---|---|---|
+| `GET /api/v1/regional/targets` | `regional_official` | The caller's targets with `current` (`value`, `expected`, `status`, `percent`, `achieved`) and `history` (one point per day) |
+| `POST /api/v1/regional/targets` | same | Body `{"indicator": "RENEWABLE_SHARE", "referenceYear": 2025, "targetValue": 60, "deadline": "2030-12-31", "tolerance": 2}`. `201` |
+| `PUT /api/v1/regional/targets/{id}` | same | Body `{"targetValue": 70, "deadline": "2032-12-31", "tolerance": null}`: indicator and reference year cannot change |
+| `DELETE /api/v1/regional/targets/{id}` | same | `204`, history deleted with it, in-process event `TargetDeleted` for the pace alert (U16) |
+
+- **Indicators**: `RENEWABLE_SHARE` (wind + solar + hydro + bioenergy over production, %), `COVERAGE_RATE`
+  (production over consumption, %), `CONSUMPTION_DROP` (drop of the mean consumption against the reference year, %),
+  `ESTIMATED_CO2` (G7 estimate, weighted by production, gCO2eq/kWh). Ratios are taken on the totals of the period, not
+  averaged half hour by half hour. Only complete readings count (consumption and the six sources).
+- **Reference value**: the indicator over the reference year (UTC calendar year, 2013 to last year), computed once at
+  creation from the merged view (K2 range). For `CONSUMPTION_DROP` it is the mean consumption in MW
+  (`referenceConsumption`) and the trajectory starts at 0 %.
+- **Current value**: the indicator over the 12 months before today (Paris), to smooth the seasons out. A period needs a
+  complete reading for 90 % of its half hours (`regional.targets.min-coverage`), or it has no value: no row that day,
+  `REFERENCE_UNAVAILABLE` (`422`) at creation.
+- **Trajectory**: a straight line from the start value on the creation day to the target on the deadline. Status
+  `AHEAD` / `ON_TRACK` / `LATE` against it, within the tolerance in points (none = 0). Whether the indicator must go up
+  or down is read from the target (a CO2 target below its reference goes down).
+- **Progress**: share of the way covered, 0 to 100 %. A target reached is `achieved: true` at 100 %, never more.
+- **Recalculation**: every hour (`regional.targets.recalculation-interval`), one K2 range call per region with targets.
+  Each run replaces the row of the day (`UNIQUE (target_id, day)`), so the history has one row per day and follows the
+  data whenever the regional batch (G6) or the speed layer brings some: platform is not told when the batch has run.
+
+Errors: `400` `INVALID_TARGET` (the `detail` says which field), `409` `TARGET_LIMIT_REACHED` (10 targets per official),
+`422` `REFERENCE_UNAVAILABLE`, `404` `TARGET_NOT_FOUND`, `403` `REGION_NOT_ASSIGNED`, `503` `GRID_UNAVAILABLE`.
+
 `grid-intelligence` does nothing by itself: its jobs are Spring profiles. To run the speed layer
 (poll ODRÉ every 15 min, publish on Kafka, store in `speed_snapshot`):
 
@@ -307,15 +371,17 @@ The batch layer (daily resync of `eco2mix-national-cons-def` and, since G6, `eco
 cd grid-intelligence && ./mvnw spring-boot:run -Dspring-boot.run.profiles=batch
 ```
 
-On an empty table the first run loads the whole history (2012 to the last published date, about 257,000 rows, about
-17 ODRÉ calls, once). Later runs cost one call and say `nothing changed` unless ODRÉ added rows or moved a year from
+On an empty table the first run loads the whole national history (2012 to the last published date, about 257,000
+rows, about 17 ODRÉ calls, once). Later runs cost one call and say `nothing changed` unless ODRÉ added rows or moved a year from
 consolidated to definitive. Settings: `src/main/resources/application-batch.properties`.
 
-The regional batch (G6) does the same for the 12 regions, from `batch.regional.first-year` (2021) on: about
-210,000 rows per year, 7 calls for the first load, 1 call a day after. Each reading gets the regional CO2 estimate of
-G7 (`estimated = true`), like the speed layer. **The first load is long:** ODRÉ sends a regional year at about 50 kB/s
-(18.6 min for 2021 on 2026-11-11), so about 2 hours for 2021 to 2026, once. That is why exports have their own timeout,
-`odre.export-read-timeout` (1 h); with the 20 s of the other calls every export failed, national included.
+The regional batch (G6) does the same for the regions, from `batch.regional.first-year` and for the regions listed in
+`batch.regional.regions` (empty means all 12). Each reading gets the regional CO2 estimate of G7 (`estimated = true`),
+like the speed layer. Defaults of the code: 2021 and all regions, about 210,000 rows a year, 7 calls for the first load,
+1 call a day after. **The first load of all regions is long:** ODRÉ sends a regional year at about 50 kB/s (18.6 min for
+2021 on 2026-11-11), so about 2 hours for 2021 to 2026, once. That is why exports have their own timeout,
+`odre.export-read-timeout` (1 h); with the 20 s of the other calls every export failed, national included. The Compose
+stack overrides the defaults to region 93 from 2025, see "Why the history covers one region".
 The `tco_*` / `tch_*` rates of the dataset are not loaded: no feature uses them (the dashboard of U11 computes its
 coverage rate from consumption and production), and they would triple the download. Check the result:
 

@@ -48,4 +48,12 @@ downgrading a definitive row.
 - Bad: the "latest" endpoint reads `speed_snapshot` directly, for 15-minute freshness; only ranges use the view.
 - Bad: a quality upgrade by the batch produces no event, so nothing reacts to it.
 - Limit: today the batch mostly copies cons-def. The real pre-computation (typical CO2 by hour and weekday) is
-  not built yet. The first regional load takes about 2 hours (ODRÉ sends a regional year in about 18 minutes).
+  not built yet. The first load of all regions takes about 2 hours (ODRÉ sends a regional year in about 18 minutes).
+
+## Update (2026-11-12)
+
+The batch can be limited to some regions and a first year (`batch.regional.regions`, `batch.regional.first-year`), because
+ODRÉ's export time grows with the rows asked for: one region and one year took 6 seconds against about 18 minutes for
+all 12. The Compose stack loads region 93 from 2025, so a fresh clone has a usable history in minutes and the targets of
+the regional official (U13) work for the test user. Another region has no history until the setting is widened. The
+decision itself (two tables, one view) is unchanged.

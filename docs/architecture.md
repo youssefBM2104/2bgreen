@@ -80,7 +80,7 @@ flowchart LR
         odreclient["odre<br/>client + ACL"]
         poller["poller<br/>(profile poller)"]
         stream["stream<br/>(profile stream)<br/>store + band step"]
-        batch["batch jobs<br/>(profile batch)"]
+        batch["batch jobs<br/>(profile batch, own container)"]
         persist["persistence<br/>JDBC upserts, merged view"]
         api["api<br/>read API (K2)"]
     end
@@ -225,10 +225,14 @@ are in [`domain-analysis.md`](domain-analysis.md#13-data-collected) and `docs/da
 | Path | Source | Writer | Table | Grain |
 |---|---|---|---|---|
 | Speed | `eco2mix-national-tr`, `eco2mix-regional-tr` | stream | `speed_snapshot` | 15 min, provisional |
-| Batch | `eco2mix-national-cons-def` (since 2012), `eco2mix-regional-cons-def` (dataset from 2013, loaded from 2021) | daily job (`batch` profile) | `batch_snapshot` | 30 min, consolidated or definitive |
+| Batch | `eco2mix-national-cons-def` (since 2012), `eco2mix-regional-cons-def` (dataset from 2013; code default loaded from 2021, Compose default: region 93 from 2025) | daily job (`batch` profile, own container started with the stack) | `batch_snapshot` | 30 min, consolidated or definitive |
 
 The view `grid.merged_snapshot` serves ranges: for a half hour the batch row wins, otherwise the provisional
 quarter-hours are averaged (`docs/data/merged-view.md`). The batch does not use Kafka.
+
+The regional history is limited by configuration (`batch.regional.regions`, `batch.regional.first-year`): ODRÉ builds a
+regional year of all 12 regions in about 18 minutes and of one region in seconds, so the Compose stack loads region 93
+from 2025 and a fresh clone is usable in minutes. See the README, "Why the history covers one region".
 
 ## A user opens a page
 

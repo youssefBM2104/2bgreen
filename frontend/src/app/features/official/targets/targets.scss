@@ -1,0 +1,83 @@
+.card {
+  padding: 16px 24px;
+  margin-bottom: 16px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+}
+
+h2 {
+  margin-top: 0;
+  font: var(--mat-sys-title-medium);
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
+.hint,
+.plan {
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.problem {
+  color: var(--mat-sys-error);
+}
+
+.state {
+  margin: 0 0 8px;
+  font: var(--mat-sys-headline-small);
+}
+
+.state.LATE {
+  color: var(--mat-sys-error);
+}
+
+.state.achieved {
+  color: var(--mat-sys-primary);
+}
+
+.figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+
+.bar {
+  height: 8px;
+  max-width: 640px;
+  margin: 8px 0 16px;
+  border-radius: 4px;
+  background: var(--mat-sys-surface-container-high);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--mat-sys-primary);
+}
+
+details {
+  margin-top: 8px;
+}
+
+table {
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+th,
+td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.actions {
+  margin-bottom: 0;
+}

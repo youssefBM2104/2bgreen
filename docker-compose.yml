@@ -106,10 +106,10 @@ services:
       retries: 12
       start_period: 40s
 
-  # Batch layer (daily resync of the consolidated data). Optional: `docker compose --profile batch up -d`.
-  # The first run loads the whole history (about 257,000 rows, 17 ODRÉ calls, once).
+  # Batch layer: daily resync of the consolidated history, started with everything else. The regional part loads
+  # only the region of the test official (93) and only from 2025 (a year of one region takes seconds at ODRÉ, a year
+  # of all 12 about 18 minutes): enough for the targets of U13. Empty BATCH_REGIONAL_REGIONS and 2021 load everything.
   grid-batch:
-    profiles: [ batch ]
     build: ./grid-intelligence
     container_name: 2bgreen-grid-batch
     environment:
@@ -119,6 +119,8 @@ services:
       # No messages are sent, but the app declares its topics at startup on every profile
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       SERVER_PORT: "8082"
+      BATCH_REGIONAL_REGIONS: ${BATCH_REGIONAL_REGIONS-93}
+      BATCH_REGIONAL_FIRST_YEAR: ${BATCH_REGIONAL_FIRST_YEAR:-2025}
     depends_on:
       timescaledb:
         condition: service_healthy

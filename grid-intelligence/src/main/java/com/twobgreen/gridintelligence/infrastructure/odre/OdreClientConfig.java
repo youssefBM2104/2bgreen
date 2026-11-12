@@ -1,7 +1,9 @@
 package com.twobgreen.gridintelligence.infrastructure.odre;
 
 import java.time.Clock;
+import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,7 +42,8 @@ class OdreClientConfig {
 	}
 
 	@Bean
-	RegionalConsolidatedOdreGateway regionalConsolidatedOdreGateway(OdreClient client) {
-		return new RegionalConsolidatedGateway(client);
+	RegionalConsolidatedOdreGateway regionalConsolidatedOdreGateway(OdreClient client,
+			@Value("${batch.regional.regions:}") List<String> regions) {
+		return new RegionalConsolidatedGateway(client, regions);
 	}
 }
