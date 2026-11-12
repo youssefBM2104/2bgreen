@@ -2,14 +2,11 @@
 
 ## Status
 
-Accepted for the API-key path (built in U10, #42). The Keycloak path for humans (OIDC with PKCE, `platform` as a JWT
-resource server) is already in the code and gets its own section in this ADR with F1′ (#2). The public endpoints
-that use the key are built in U7 (#39): `GET /api/v1/public/intensity/latest` and `GET /api/v1/public/intensity`,
-contract `docs/api/public-openapi.yaml`.
+Accepted (2026-11-11).
 
 ## Context
 
-DevOps users call 2bGreen from scripts and CI pipelines (carbon-intensity API U7, best window U8), not from a
+2026-11-11. DevOps users call 2bGreen from scripts and CI pipelines (carbon-intensity API, best window), not from a
 browser. They log in to the DevOps page with Keycloak like everyone else, but a pipeline cannot do a PKCE login. It
 needs a credential it can hold in a CI secret and send on every request. `platform` must:
 
