@@ -28,6 +28,9 @@ frontend pages are not built yet.
 - Kafka as the event backbone between contexts; PostgreSQL + TimescaleDB for time series and user data;
   Keycloak for authentication (OIDC, PKCE).
 
+Architecture overview: [`docs/architecture.md`](docs/architecture.md). Decisions and their alternatives:
+[`docs/adr/`](docs/adr/). How we work (branches, commits, definition of done): [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Repository layout
 
 | Path | What it is |
