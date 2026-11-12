@@ -19,13 +19,26 @@ class RegionalConsolidatedGateway implements RegionalConsolidatedOdreGateway {
 
 	private final OdreClient client;
 
+	/** INSEE codes to load, empty for every region. */
+	private final List<String> regions;
+
 	RegionalConsolidatedGateway(OdreClient client) {
+		this(client, List.of());
+	}
+
+	/**
+	 * @param regions the regions to load, two-digit INSEE codes; empty means all of them
+	 * @throws IllegalArgumentException if a code is not two digits, so a wrong setting stops the app at startup
+	 */
+	RegionalConsolidatedGateway(OdreClient client, List<String> regions) {
+		OdreClient.regionCondition(regions);
 		this.client = client;
+		this.regions = List.copyOf(regions);
 	}
 
 	@Override
 	public List<YearQualityCount> regionalCounts() {
-		return client.regionalConsolidatedCounts().stream()
+		return client.regionalConsolidatedCounts(regions).stream()
 				.map(count -> new YearQualityCount(count.year(),
 						NationalConsolidatedMapping.quality(count.nature(), "in the regional count of " + count.year()),
 						count.rows()))
@@ -37,7 +50,7 @@ class RegionalConsolidatedGateway implements RegionalConsolidatedOdreGateway {
 	public List<GridSnapshot> regionalReadings(int year) {
 		Instant from = Instant.parse(year + "-01-01T00:00:00Z");
 		Instant to = from.atOffset(ZoneOffset.UTC).plusYears(1).toInstant();
-		List<GridSnapshot> readings = client.regionalConsolidatedBetween(from, to).stream()
+		List<GridSnapshot> readings = client.regionalConsolidatedBetween(from, to, regions).stream()
 				.map(RegionalConsolidatedMapping::toSnapshot)
 				.flatMap(Optional::stream)
 				.toList();

@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,6 +63,10 @@ class OdreClient {
 
 	private static final String COUNTS = "/catalog/datasets/{dataset}/records"
 			+ "?select={select}&group_by={groupBy}&limit={limit}";
+
+	private static final String COUNTS_WHERE = COUNTS + "&where={where}";
+
+	private static final Pattern INSEE_CODE = Pattern.compile("\\d{2}");
 
 	/** Rows per (year, nature) group fit in one page for a long time: 15 years of history, one new group a year. */
 	private static final int COUNTS_LIMIT = 100;
@@ -137,7 +143,7 @@ class OdreClient {
 	 *         half-read year is never returned
 	 */
 	List<NationalConsolidatedRecord> nationalConsolidatedBetween(Instant from, Instant to) {
-		return exportBetween(NATIONAL_CONSOLIDATED, EXPORT, null, from, to, responses::nationalConsolidatedLine);
+		return exportBetween(NATIONAL_CONSOLIDATED, EXPORT, null, from, to, null, responses::nationalConsolidatedLine);
 	}
 
 	/**
@@ -149,19 +155,49 @@ class OdreClient {
 	 * @param to same
 	 */
 	List<RegionalConsolidatedRecord> regionalConsolidatedBetween(Instant from, Instant to) {
+		return regionalConsolidatedBetween(from, to, List.of());
+	}
+
+	/**
+	 * Same, for the listed regions only ({@code regions} empty means all). One region is about a twelfth of the rows,
+	 * which is the difference between minutes and seconds on ODRÉ's side.
+	 *
+	 * @param regions INSEE codes, two digits each
+	 * @throws IllegalArgumentException if a code is not two digits (it goes into an ODSQL literal)
+	 */
+	List<RegionalConsolidatedRecord> regionalConsolidatedBetween(Instant from, Instant to, List<String> regions) {
 		return exportBetween(REGIONAL_CONSOLIDATED, EXPORT_SELECT, REGIONAL_CONSOLIDATED_FIELDS, from, to,
-				responses::regionalConsolidatedLine);
+				regionCondition(regions), responses::regionalConsolidatedLine);
+	}
+
+	/**
+	 * The ODSQL condition that keeps the listed regions, or null for all of them.
+	 *
+	 * @throws IllegalArgumentException if a code is not two digits
+	 */
+	static String regionCondition(List<String> regions) {
+		if (regions == null || regions.isEmpty()) {
+			return null;
+		}
+		for (String code : regions) {
+			if (code == null || !INSEE_CODE.matcher(code).matches()) {
+				throw new IllegalArgumentException("a region code is two digits, got: " + code);
+			}
+		}
+		return regions.stream().map(code -> "code_insee_region = \"" + code + "\"")
+				.collect(Collectors.joining(" or ", "(", ")"));
 	}
 
 	private <T> List<T> exportBetween(String dataset, String template, String select, Instant from, Instant to,
-			Function<String, T> decode) {
+			String condition, Function<String, T> decode) {
 		Objects.requireNonNull(from, "from");
 		Objects.requireNonNull(to, "to");
 		List<T> rows = new ArrayList<>();
 		if (!to.isAfter(from)) {
 			return rows;
 		}
-		String where = "date_heure >= \"" + from + "\" and date_heure < \"" + to + "\" and consommation is not null";
+		String where = "date_heure >= \"" + from + "\" and date_heure < \"" + to + "\" and consommation is not null"
+				+ (condition == null ? "" : " and " + condition);
 		Object[] variables = select == null ? new Object[] { dataset, where } : new Object[] { dataset, select, where };
 		get(exports, dataset, from, template, variables, body -> {
 			try (BufferedReader lines = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8))) {
@@ -193,12 +229,28 @@ class OdreClient {
 
 	/** Same for {@code eco2mix-regional-cons-def}, every region together. */
 	List<ConsolidatedCount> regionalConsolidatedCounts() {
-		return consolidatedCounts(REGIONAL_CONSOLIDATED);
+		return regionalConsolidatedCounts(List.of());
+	}
+
+	/**
+	 * Same, for the listed regions only ({@code regions} empty means all). The counts must cover the same regions as
+	 * the exports, or a change in a region that is not loaded would trigger a download for nothing.
+	 */
+	List<ConsolidatedCount> regionalConsolidatedCounts(List<String> regions) {
+		return consolidatedCounts(REGIONAL_CONSOLIDATED, regionCondition(regions));
 	}
 
 	private List<ConsolidatedCount> consolidatedCounts(String dataset) {
-		String body = get(dataset, Instant.EPOCH, COUNTS, new Object[] { dataset, "annee,nature,count(*) as n",
-				"year(date_heure) as annee,nature", COUNTS_LIMIT }, this::readText);
+		return consolidatedCounts(dataset, null);
+	}
+
+	private List<ConsolidatedCount> consolidatedCounts(String dataset, String condition) {
+		Object[] variables = condition == null
+				? new Object[] { dataset, "annee,nature,count(*) as n", "year(date_heure) as annee,nature", COUNTS_LIMIT }
+				: new Object[] { dataset, "annee,nature,count(*) as n", "year(date_heure) as annee,nature",
+						COUNTS_LIMIT, condition };
+		String body = get(dataset, Instant.EPOCH, condition == null ? COUNTS : COUNTS_WHERE, variables,
+				this::readText);
 		try {
 			RecordsPage<ConsolidatedCount> page = responses.nationalConsolidatedCounts(body);
 			if (page.totalCount() > page.results().size()) {

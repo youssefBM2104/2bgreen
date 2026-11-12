@@ -124,6 +124,47 @@ class RegionalConsolidatedGatewayTests {
 		assertThat(gateway().regionalReadings(2025)).hasSize(2);
 	}
 
+	@Test
+	void noRegionListAsksForEveryRegion() {
+		odre.reply(200, fixture("regional-consdef-export-dst-2025.jsonl"));
+
+		gateway().regionalReadings(2025);
+
+		assertThat(odre.requests()).singleElement().satisfies(request -> assertThat(decode(
+				UriComponentsBuilder.fromUri(request).build().getQueryParams().getFirst("where")))
+				.doesNotContain("code_insee_region"));
+	}
+
+	@Test
+	void theRegionListFiltersTheExportAndTheCounts() {
+		odre.reply(200, fixture("regional-consdef-export-dst-2025.jsonl"));
+		RegionalConsolidatedGateway onlyTwo = new RegionalConsolidatedGateway(OdreClient.create(
+				new OdreProperties(odre.baseUrl(), Duration.ofSeconds(1), Duration.ofSeconds(2), 100)),
+				List.of("93", "76"));
+
+		onlyTwo.regionalReadings(2025);
+		odre.reply(200, fixture("regional-consdef-counts.json"));
+		onlyTwo.regionalCounts();
+
+		assertThat(odre.requests()).hasSize(2);
+		for (var request : odre.requests()) {
+			assertThat(decode(UriComponentsBuilder.fromUri(request).build().getQueryParams().getFirst("where")))
+					.contains("(code_insee_region = \"93\" or code_insee_region = \"76\")");
+		}
+		assertThat(decode(UriComponentsBuilder.fromUri(odre.requests().getFirst()).build().getQueryParams()
+				.getFirst("where"))).startsWith("date_heure >= \"2025-01-01T00:00:00Z\"");
+	}
+
+	@Test
+	void aRegionCodeThatIsNotTwoDigitsIsRefusedBeforeAnyCall() {
+		OdreClient client = OdreClient.create(
+				new OdreProperties(odre.baseUrl(), Duration.ofSeconds(1), Duration.ofSeconds(2), 100));
+
+		assertThatThrownBy(() -> new RegionalConsolidatedGateway(client, List.of("93\" or 1=1 or \"")))
+				.isInstanceOf(IllegalArgumentException.class);
+		assertThat(odre.requests()).isEmpty();
+	}
+
 	private static String decode(String value) {
 		return UriUtils.decode(value, StandardCharsets.UTF_8);
 	}
