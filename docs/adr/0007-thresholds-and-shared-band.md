@@ -26,7 +26,7 @@ Option 3.
 
 - **User thresholds**: the rule engine of `platform` (group `platform-rules`) reads `grid.snapshot-stored` and compares
   each user's rules with the snapshot. The volume is one message per scope every 15 minutes, so checking all rules on
-  each message is cheap. The value object `Threshold` is used inside `platform` only.
+  each message is cheap. A shared kernel `Threshold` was planned in K1 but never written: each rule carries its own threshold value.
 - **Shared band**: a stateful step of the stream keeps the last band per scope in a state store and publishes
   `grid.band-changed` only when the band changes (limits 20 and 40 gCO2eq/kWh, equal belongs to the worse band; replayed or
   older readings are ignored). It is real stream processing: state, order per scope, replay.
