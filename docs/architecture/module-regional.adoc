@@ -4,4 +4,6 @@
 |Module `regional`. Only this root package is the public API; sub-packages are internal.
 |Base package
 |`com.twobgreen.platform.regional`
+|Bean references
+|* `c.t.p.a.GridSnapshots` (in Advisory) -- The whole readings of the grid (consumption, production by source, CO2), for the modules that show more than an intensity. Read through `advisory`, which owns the client of grid-intelligence (F4), like `c.t.p.a.GridIntensity`. The regional dashboard (U11, module `regional`) is built on it.
 |===

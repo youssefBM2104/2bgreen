@@ -414,9 +414,8 @@
     "credentials" : [ {
       "id" : "fcbfc555-f6cc-4c45-9bf5-1e37860a5880",
       "type" : "password",
-      "userLabel" : "My password",
-      "createdDate" : 1793048121798,
-      "secretData" : "{\"value\":\"y6XREZzTJBO3xRTafCXpQkehGs60YVgskqddA+U6KO4=\",\"salt\":\"UWa1rfCmSrnbIVpliFhLdQ==\",\"additionalParameters\":{}}",
+      "createdDate" : 1794424702644,
+      "secretData" : "{\"value\":\"skZWe5LECbsKinGGicCEoAZk5ePBJe1rvNni6i/skY4=\",\"salt\":\"1g9G7Rx8qA8iMAlinquhAA==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
@@ -437,9 +436,8 @@
     "credentials" : [ {
       "id" : "b33ff7ac-1ef2-4304-9448-192690be4964",
       "type" : "password",
-      "userLabel" : "My password",
-      "createdDate" : 1793048185816,
-      "secretData" : "{\"value\":\"zXRsbHPubIP2F4jX0KadZ1ZbHtM5v0DpGJHWKAwuOhI=\",\"salt\":\"6htdXCTG9D15r+GvG3N4Lg==\",\"additionalParameters\":{}}",
+      "createdDate" : 1794424703909,
+      "secretData" : "{\"value\":\"EYQXiJFvuh9KGXLWfCT7u5IXf3kuRG5b/7HoxCgc0bs=\",\"salt\":\"m5080DCSX+/06DrTutpboQ==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
@@ -454,15 +452,17 @@
     "lastName" : "Official",
     "email" : "official@2bgreen.local",
     "emailVerified" : true,
+    "attributes" : {
+      "region_code" : [ "93" ]
+    },
     "enabled" : true,
     "createdTimestamp" : 1791966016544,
     "totp" : false,
     "credentials" : [ {
       "id" : "f90026f5-8026-4696-aeb1-22304d655d6e",
       "type" : "password",
-      "userLabel" : "My password",
-      "createdDate" : 1793048199149,
-      "secretData" : "{\"value\":\"Iu5LJVMU4wEJTBpd5eZs40itkd8ReWfHoCigQ29mCE0=\",\"salt\":\"3EC/mkTlm6URaQG0TDwZUw==\",\"additionalParameters\":{}}",
+      "createdDate" : 1794424687970,
+      "secretData" : "{\"value\":\"e4FjWbbWqQKAizIfd+hFAbWI2SR11QqMkcJc/3NiQeM=\",\"salt\":\"sMLNUYVSJahvuvqzlkGTAQ==\",\"additionalParameters\":{}}",
       "credentialData" : "{\"hashIterations\":5,\"algorithm\":\"argon2\",\"additionalParameters\":{\"hashLength\":[\"32\"],\"memory\":[\"7168\"],\"type\":[\"id\"],\"version\":[\"1.3\"],\"parallelism\":[\"1\"]}}"
     } ],
     "disableableCredentialTypes" : [ ],
@@ -533,6 +533,24 @@
     "authenticationFlowBindingOverrides" : { },
     "fullScopeAllowed" : true,
     "nodeReRegistrationTimeout" : -1,
+    "protocolMappers" : [ {
+      "id" : "5b9a264e-339a-4dbc-99e0-729ed2d9bced",
+      "name" : "region_code",
+      "protocol" : "openid-connect",
+      "protocolMapper" : "oidc-usermodel-attribute-mapper",
+      "consentRequired" : false,
+      "config" : {
+        "aggregate.attrs" : "false",
+        "introspection.token.claim" : "true",
+        "userinfo.token.claim" : "true",
+        "multivalued" : "false",
+        "user.attribute" : "region_code",
+        "id.token.claim" : "true",
+        "access.token.claim" : "true",
+        "claim.name" : "region_code",
+        "jsonType.label" : "String"
+      }
+    } ],
     "defaultClientScopes" : [ "web-origins", "acr", "roles", "profile", "basic", "email" ],
     "optionalClientScopes" : [ "address", "phone", "organization", "offline_access", "microprofile-jwt" ]
   }, {
@@ -1412,7 +1430,7 @@
       "subType" : "authenticated",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "oidc-usermodel-attribute-mapper", "saml-user-attribute-mapper", "oidc-full-name-mapper", "oidc-address-mapper", "oidc-usermodel-property-mapper", "saml-user-property-mapper", "oidc-sha256-pairwise-sub-mapper", "saml-role-list-mapper" ]
+        "allowed-protocol-mapper-types" : [ "oidc-full-name-mapper", "oidc-usermodel-attribute-mapper", "saml-role-list-mapper", "saml-user-attribute-mapper", "oidc-sha256-pairwise-sub-mapper", "oidc-address-mapper", "saml-user-property-mapper", "oidc-usermodel-property-mapper" ]
       }
     }, {
       "id" : "6e091ab8-9fc1-4531-9f89-6b600299022c",
@@ -1431,7 +1449,7 @@
       "subType" : "anonymous",
       "subComponents" : { },
       "config" : {
-        "allowed-protocol-mapper-types" : [ "oidc-address-mapper", "oidc-usermodel-property-mapper", "saml-role-list-mapper", "oidc-full-name-mapper", "oidc-sha256-pairwise-sub-mapper", "saml-user-property-mapper", "oidc-usermodel-attribute-mapper", "saml-user-attribute-mapper" ]
+        "allowed-protocol-mapper-types" : [ "saml-role-list-mapper", "oidc-usermodel-property-mapper", "oidc-full-name-mapper", "saml-user-attribute-mapper", "oidc-address-mapper", "oidc-sha256-pairwise-sub-mapper", "oidc-usermodel-attribute-mapper", "saml-user-property-mapper" ]
       }
     }, {
       "id" : "436c92fc-d6e2-4667-9d47-48a51adcd35a",
@@ -1457,6 +1475,14 @@
       "subComponents" : { },
       "config" : {
         "max-clients" : [ "200" ]
+      }
+    } ],
+    "org.keycloak.userprofile.UserProfileProvider" : [ {
+      "id" : "51aef90e-9ef0-486f-bf0e-1b44dc411ae1",
+      "providerId" : "declarative-user-profile",
+      "subComponents" : { },
+      "config" : {
+        "kc.user.profile.config" : [ "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"region_code\",\"displayName\":\"Région (code INSEE)\",\"validations\":{\"options\":{\"options\":[\"11\",\"24\",\"27\",\"28\",\"32\",\"44\",\"52\",\"53\",\"75\",\"76\",\"84\",\"93\"]}},\"annotations\":{\"inputType\":\"select\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}" ]
       }
     } ],
     "org.keycloak.keys.KeyProvider" : [ {

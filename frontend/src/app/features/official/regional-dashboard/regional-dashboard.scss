@@ -1,0 +1,80 @@
+.card {
+  padding: 16px 24px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+}
+
+h2 {
+  margin-top: 0;
+  font: var(--mat-sys-title-medium);
+}
+
+.title {
+  margin: 0 0 4px;
+  font: var(--mat-sys-headline-small);
+}
+
+.when {
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.when.stale {
+  color: var(--mat-sys-error);
+}
+
+table {
+  width: 100%;
+  max-width: 640px;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+caption {
+  text-align: left;
+  font: var(--mat-sys-title-small);
+  margin-bottom: 8px;
+}
+
+th,
+td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  text-align: right;
+}
+
+th[scope='row'] {
+  text-align: left;
+  font-weight: normal;
+}
+
+tr.total th,
+tr.total td {
+  font-weight: 500;
+}
+
+tr.source th {
+  padding-left: 24px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.sub {
+  display: block;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.estimated {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font: var(--mat-sys-label-small);
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.details {
+  margin-bottom: 0;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-on-surface-variant);
+}

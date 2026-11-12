@@ -58,7 +58,7 @@ Stores nothing: carbon-intensity API [U7] (it only authenticates with the key of
 
 Stores nothing: regional dashboard [U11], trends [U12], comparison [U14], estimated CO2 [U15] (they only read grid data). Dropped: timeline annotations and async report.
 
-**The official's region is not stored in `platform`.** U11 puts it in a Keycloak attribute, `region_code`, exposed in the token by a mapper, and the official cannot change it. `platform` reads it from the token on each call. So there is no "chosen region" row for this persona: this replaces what the first version of this document said. Consequence for the team: that attribute is user data held by **Keycloak** (and exported in `infra/keycloak/2bgreen-realm.json`), to be listed in the data strategy (W2) and the risk matrix (W4).
+**The official's region is not stored in `platform`.** U11 puts it in a Keycloak attribute, `region_code`, exposed in the token by a mapper, and the official cannot change it. `platform` reads it from the token on each call. So there is no "chosen region" row for this persona: this replaces what the first version of this document said. Consequence for the team: that attribute is user data held by **Keycloak** (and exported in `infra/keycloak/2bgreen-realm.json`), to be listed in the data strategy (W2) and the risk matrix (W4). *Built in U11:* the attribute is declared in the realm's user profile, limited to the 12 region codes, readable by the user and editable by an administrator only; a client mapper puts it in the access token as `region_code`.
 
 | Data | Fields (from the issue) | Purpose | Owner | Retention | Personal |
 |---|---|---|---|---|---|
